@@ -1,0 +1,8 @@
+name = "rescript-binding-registry"
+main = "src/Worker.mjs"
+compatibility_date = "2026-04-19"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "rescript-binding-registry"
+database_id = "local-dev"

@@ -1,0 +1,5 @@
+@module("node:path") external join2: (string, string) => string = "join"
+@module("node:path") external join3: (string, string, string) => string = "join"
+@module("node:path") external join4: (string, string, string, string) => string = "join"
+@module("node:path") external dirname: string => string = "dirname"
+@module("node:path") external resolve2: (string, string) => string = "resolve"
