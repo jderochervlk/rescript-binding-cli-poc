@@ -1,0 +1,17 @@
+{
+  "name": "rescript-binding-cli-poc",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rescript build -with-deps",
+    "clean": "rescript clean",
+    "test": "rescript build -with-deps"
+  },
+  "devDependencies": {
+    "rescript": "^12.0.0"
+  },
+  "bin": {
+    "rescript": "./src/Main.mjs"
+  }
+}
