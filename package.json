@@ -6,7 +6,7 @@
   "scripts": {
     "build": "rescript build",
     "clean": "rescript clean",
-    "test": "rescript build"
+    "test": "rescript build && node test/Validation_test.mjs && node test/Cli_test.mjs && node test/D1_test.mjs"
   },
   "devDependencies": {
     "rescript": "^12.0.0"
