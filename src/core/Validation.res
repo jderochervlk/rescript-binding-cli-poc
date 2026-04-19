@@ -11,32 +11,32 @@ let maxTotalBytes = 2 * 1024 * 1024
 @send external endsWith: (string, string) => bool = "endsWith"
 @send external includes: (string, string) => bool = "includes"
 @send external split: (string, string) => array<string> = "split"
+@send external sliceToEnd: (string, int) => string = "slice"
+@send external sliceRange: (string, int, int) => string = "slice"
 @send external replaceAll: (string, string, string) => string = "replaceAll"
 @send external toLowerCase: string => string = "toLowerCase"
-
-let stringSliceToEnd = (value: string, from: int): string =>
-  %raw(`value.slice(from)`)
-
-let stringSlice = (value: string, from: int, to_: int): string =>
-  %raw(`value.slice(from, to_)`)
 
 let normalizeRelativePath = (inputPath: string): string => {
   let windowsNormalized = replaceAll(inputPath, "\\", "/")
   let raw = trim(windowsNormalized)
-  let withoutPrefix = if startsWith(raw, "/") { stringSliceToEnd(raw, 1) } else { raw }
+  let withoutPrefix = if startsWith(raw, "/") {
+    sliceToEnd(raw, 1)
+  } else {
+    raw
+  }
 
   if withoutPrefix == "" || withoutPrefix == "." {
-    raise(ValidationError("Path must not be empty"))
+    throw(ValidationError("Path must not be empty"))
   }
 
   if includes(withoutPrefix, "../") || withoutPrefix == ".." {
-    raise(ValidationError("Path escapes root: " ++ inputPath))
+    throw(ValidationError("Path escapes root: " ++ inputPath))
   }
 
-  let parts = split(withoutPrefix, "/")->Array.keep(part => part != "")
+  let parts = split(withoutPrefix, "/")->Array.filter(part => part != "")
   let hasHidden = parts->Array.some(part => startsWith(part, "."))
   if hasHidden {
-    raise(ValidationError("Hidden files/directories are not allowed: " ++ inputPath))
+    throw(ValidationError("Hidden files/directories are not allowed: " ++ inputPath))
   }
 
   withoutPrefix
@@ -48,37 +48,38 @@ let rangeLooksValid = (range: string): bool => trim(range) != ""
 
 let safeSlug = (value: string): string => {
   let base = value->toLowerCase->trim
-  let parts = split(base, " ")->Array.keep(part => part != "")
-  let slug = parts->Array.joinWith("-")
-  stringSlice(slug, 0, 80)
+  let parts = split(base, " ")->Array.filter(part => part != "")
+  let slug = parts->Array.join("-")
+  sliceRange(slug, 0, 80)
 }
 
 let validateFileEntries = (files: array<fileEntry>): array<normalizedFileEntry> => {
   let count = files->Array.length
   if count == 0 {
-    raise(ValidationError("Upload must contain at least one file"))
+    throw(ValidationError("Upload must contain at least one file"))
   }
   if count > maxFiles {
-    raise(ValidationError("Upload exceeds max file count"))
+    throw(ValidationError("Upload exceeds max file count"))
   }
 
-  let seenPaths: ref<array<string>> = ref([||])
+  let seenPaths: ref<array<string>> = ref([])
   let totalBytes = ref(0)
 
-  files->Array.map(file => {
+  files
+  ->Array.map(file => {
     let normalizedPath = normalizeRelativePath(file.relativePath)
     if !hasAllowedExt(normalizedPath) {
-      raise(ValidationError("Invalid file extension: " ++ normalizedPath))
+      throw(ValidationError("Invalid file extension: " ++ normalizedPath))
     }
 
     if seenPaths.contents->Array.some(path => path == normalizedPath) {
-      raise(ValidationError("Duplicate path: " ++ normalizedPath))
+      throw(ValidationError("Duplicate path: " ++ normalizedPath))
     }
 
     seenPaths := [...seenPaths.contents, normalizedPath]
     let bytes = String.length(file.content)
     if bytes > maxFileBytes {
-      raise(ValidationError("File too large: " ++ normalizedPath))
+      throw(ValidationError("File too large: " ++ normalizedPath))
     }
 
     totalBytes := totalBytes.contents + bytes
@@ -86,12 +87,15 @@ let validateFileEntries = (files: array<fileEntry>): array<normalizedFileEntry> 
     {
       relativePath: normalizedPath,
       content: file.content,
-      bytes: bytes,
+      bytes,
     }
-  })->(normalized => {
-    if totalBytes.contents > maxTotalBytes {
-      raise(ValidationError("Upload exceeds max total size"))
-    }
-    normalized
   })
+  ->(
+    normalized => {
+      if totalBytes.contents > maxTotalBytes {
+        throw(ValidationError("Upload exceeds max total size"))
+      }
+      normalized
+    }
+  )
 }

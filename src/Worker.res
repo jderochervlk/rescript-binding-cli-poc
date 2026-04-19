@@ -10,7 +10,7 @@ let getAt = (items: array<'a>, index: int): option<'a> =>
   if index < 0 || index >= items->Array.length {
     None
   } else {
-    Some(items[index])
+    items[index]
   }
 
 let computeCompatibility = (
@@ -81,11 +81,11 @@ let routeFrom = (method_: string, pathname: string): route => {
 
 let validatePublishInput = (input: publishInput): array<normalizedFileEntry> => {
   if input.packageName == "" || input.variantLabel == "" {
-    raise(Validation.ValidationError("Missing required publish fields"))
+    throw(Validation.ValidationError("Missing required publish fields"))
   }
 
   if !Validation.rangeLooksValid(input.peerPackageRange) || !Validation.rangeLooksValid(input.rescriptRange) {
-    raise(Validation.ValidationError("Invalid semver range fields"))
+    throw(Validation.ValidationError("Invalid semver range fields"))
   }
 
   Validation.validateFileEntries(input.files)
