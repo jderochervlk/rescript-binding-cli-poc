@@ -1,6 +1,6 @@
 let assertTrue = (cond: bool, label: string) => {
   if !cond {
-    raise(Failure("Assertion failed: " ++ label))
+    throw(Failure("Assertion failed: " ++ label))
   }
 }
 
