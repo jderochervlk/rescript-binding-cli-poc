@@ -10,7 +10,7 @@ let assertParse = (argv, expected, label) => {
 
 let () = {
   assertParse(
-    ["node", "src/Main.mjs", "binding", "add", "@scope/pkg"],
+    ["node", "src/Main.res.mjs", "binding", "add", "@scope/pkg"],
     Some(("add", "@scope/pkg", None)),
     "parse add command",
   )
@@ -18,7 +18,7 @@ let () = {
   assertParse(
     [
       "node",
-      "src/Main.mjs",
+      "src/Main.res.mjs",
       "binding",
       "add",
       "@scope/pkg",
@@ -30,13 +30,13 @@ let () = {
   )
 
   assertParse(
-    ["node", "src/Main.mjs", "binding", "publish"],
+    ["node", "src/Main.res.mjs", "binding", "publish"],
     Some(("publish", "", None)),
     "parse publish command",
   )
 
   assertParse(
-    ["node", "src/Main.mjs", "binding", "install", "pkg"],
+    ["node", "src/Main.res.mjs", "binding", "install", "pkg"],
     None,
     "reject unknown command",
   )
