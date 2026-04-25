@@ -8,6 +8,39 @@
 
 **Tech Stack:** ReScript 12, Node.js ESM, Cloudflare Workers, Cloudflare Access Managed OAuth, Wrangler, plain Node test files
 
+## Execution Status
+
+Last synced: `2026-04-25`
+
+- active implementation branch: `codex/publish-oauth`
+- implementation has been moved back into the main repo working tree at `/home/josh/Dev/rescript-binding-cli-poc`
+- previous worktree snapshot: `/home/josh/.config/superpowers/worktrees/rescript-binding-cli-poc/publish-oauth`
+- Task 1 is complete and committed in worktree commit `d0e200e` (`test: add oauth helper utility coverage`)
+- Task 2 is in progress in the main repo and currently uncommitted
+- Tasks 3 and 4 have not started yet
+
+Current Task 2 state:
+
+- `src/js/PublishOAuth.mjs` has been moved into the main repo with the expanded discovery, registration, refresh, loopback, cache IO, and authenticated `/v1/me` fetch logic from the worktree
+- `package.json` in the main repo now includes `node test/PublishOAuth_test.mjs` in `npm test`
+- `test/PublishOAuth_test.mjs` has been restored in the main repo to the last passing Task 1 helper coverage so the moved baseline stays runnable
+- spec review for Task 2 passed once against that helper shape
+- code-quality review found follow-up issues worth fixing before proceeding:
+  - cached-token reuse should not require authorization-server discovery
+  - a revoked but locally unexpired access token should fall back to refresh before failing
+  - refresh should degrade to interactive auth when the cache lacks `clientId`
+  - helper tests should cover reuse, revoked-token recovery, incomplete refresh state, and parsed authorization URL assertions
+- the interrupted worktree deletion of `test/PublishOAuth_test.mjs` was not carried forward; the main repo is now the source of truth
+- sanity check after the move: `node test/PublishOAuth_test.mjs` passes in the main repo
+
+Recommended resume point:
+
+1. Extend `test/PublishOAuth_test.mjs` in the main repo with the stronger Task 2 coverage for reuse, revoked-token fallback, incomplete refresh state, and parsed authorization URL checks.
+2. Update `src/js/PublishOAuth.mjs` so reuse does not depend on discovery, revoked reuse falls back to refresh, and refresh without `clientId` falls back to interactive auth.
+3. Re-run `node test/PublishOAuth_test.mjs`.
+4. Re-run Task 2 code-quality review.
+5. Commit Task 2 from the main repo once the review passes.
+
 ---
 
 ## Cloudflare Preflight
@@ -66,7 +99,7 @@ The plan assumes the authorization server metadata for the publish hostname incl
 - Create: `src/js/PublishOAuth.mjs`
 - Test: `test/PublishOAuth_test.mjs`
 
-- [ ] **Step 1: Write the failing JS helper test**
+- [x] **Step 1: Write the failing JS helper test**
 
 ```js
 import {
@@ -141,12 +174,12 @@ assert(selectAuthStrategy(null, now) === "interactive", "missing bundle uses int
 console.log("PublishOAuth_test.mjs passed")
 ```
 
-- [ ] **Step 2: Run the helper test to verify it fails**
+- [x] **Step 2: Run the helper test to verify it fails**
 
 Run: `node test/PublishOAuth_test.mjs`
 Expected: FAIL with `ERR_MODULE_NOT_FOUND` because `src/js/PublishOAuth.mjs` does not exist yet.
 
-- [ ] **Step 3: Write the minimal pure helper implementation**
+- [x] **Step 3: Write the minimal pure helper implementation**
 
 ```js
 import path from "node:path"
@@ -207,12 +240,12 @@ export const selectAuthStrategy = (bundle, now = Date.now()) => {
 }
 ```
 
-- [ ] **Step 4: Run the helper test to verify it passes**
+- [x] **Step 4: Run the helper test to verify it passes**
 
 Run: `node test/PublishOAuth_test.mjs`
 Expected: PASS with final line `PublishOAuth_test.mjs passed`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/js/PublishOAuth.mjs test/PublishOAuth_test.mjs
