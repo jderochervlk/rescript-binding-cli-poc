@@ -79,6 +79,12 @@ let routeFrom = (method_: string, pathname: string): route => {
   }
 }
 
+let isProtectedRoute = route =>
+  switch route {
+  | Me | Publish | AdminPublishers => true
+  | ListPackageReleases(_) | GetRelease(_) | NotFound => false
+  }
+
 let validatePublishInput = (input: publishInput): array<normalizedFileEntry> => {
   if input.packageName == "" || input.variantLabel == "" {
     throw(Validation.ValidationError("Missing required publish fields"))
