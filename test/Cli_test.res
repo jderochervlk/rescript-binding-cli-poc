@@ -48,5 +48,31 @@ let () = {
     "default install folder is derived from cwd/package/variant",
   )
 
+  assertTrue(
+    Cli.publishBaseUrlFrom(None) == "https://publish.bindings.rescript-lang.org",
+    "publish base url defaults to production hostname",
+  )
+
+  assertTrue(
+    Cli.publishBaseUrlFrom(Some("https://staging.example.com")) == "https://staging.example.com",
+    "publish base url honors env override",
+  )
+
+  assertTrue(
+    Cli.authDisplayName(~githubLogin=Some("octocat"), ~email=None, ~displayName=None) == "octocat",
+    "github login is the preferred identity label",
+  )
+
+  assertTrue(
+    Cli.authDisplayName(~githubLogin=None, ~email=Some("dev@example.com"), ~displayName=None) ==
+      "dev@example.com",
+    "email is the fallback identity label",
+  )
+
+  assertTrue(
+    Cli.authDisplayName(~githubLogin=None, ~email=None, ~displayName=Some("Dev")) == "Dev",
+    "display name is used when login and email are absent",
+  )
+
   Console.log("Cli_test.res passed")
 }

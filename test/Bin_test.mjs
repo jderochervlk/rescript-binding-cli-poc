@@ -9,6 +9,7 @@ const assert = (condition, label) => {
 
 const packageJsonPath = new URL("../package.json", import.meta.url)
 const wrapperUrl = new URL("../bin/rescript-bindings.mjs", import.meta.url)
+const cliUrl = new URL("../src/Cli.res.mjs", import.meta.url)
 const wrapperPath = fileURLToPath(wrapperUrl)
 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"))
 
@@ -33,7 +34,7 @@ console.log = (...args) => {
   loggedLines.push(args.join(" "))
 }
 
-process.argv = [process.execPath, wrapperPath, "binding", "publish"]
+process.argv = [process.execPath, wrapperPath, "binding", "add", "is-even"]
 
 try {
   await import(`${wrapperUrl.href}?bin-test`)
@@ -43,8 +44,37 @@ try {
 }
 
 assert(
-  loggedLines.includes("Publish flow scaffold is wired in ReScript"),
-  "CLI wrapper launches the publish command"
+  loggedLines.includes("Install package is-even"),
+  "CLI wrapper launches the compiled add command"
+)
+
+const cliModule = await import(`${cliUrl.href}?publish-auth-test`)
+let publishBaseUrl = null
+
+console.log = (...args) => {
+  loggedLines.push(args.join(" "))
+}
+
+try {
+  await cliModule.runPublishAuthCheckWith("https://staging.example.com", publishBaseUrl_ => {
+    publishBaseUrl = publishBaseUrl_
+    return Promise.resolve({
+      githubLogin: "octocat",
+      displayName: undefined,
+      email: undefined,
+    })
+  })
+} finally {
+  console.log = originalLog
+}
+
+assert(
+  publishBaseUrl === "https://staging.example.com",
+  "publish auth helper receives the resolved publish base url"
+)
+assert(
+  loggedLines.includes("Authenticated as octocat"),
+  "publish auth check logs the authenticated identity label"
 )
 
 console.log("Bin_test.mjs passed")
