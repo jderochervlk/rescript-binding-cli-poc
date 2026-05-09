@@ -8,20 +8,24 @@ const assert = (condition, label) => {
 }
 
 const packageJsonPath = new URL("../package.json", import.meta.url)
-const wrapperUrl = new URL("../bin/rescript-bindings.mjs", import.meta.url)
+const wrapperUrl = new URL("../bin/index.mjs", import.meta.url)
 const cliUrl = new URL("../src/Cli.res.mjs", import.meta.url)
 const wrapperPath = fileURLToPath(wrapperUrl)
 const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"))
 
 assert(
-  packageJson.bin?.["rescript-bindings"] === "./bin/rescript-bindings.mjs",
-  "package.json points the CLI bin at the wrapper"
+  packageJson.bin?.["rescript-bindings"] === "./bin/index.mjs",
+  "package.json points the CLI bin at the bundled entry"
 )
 
-assert(existsSync(wrapperPath), "CLI wrapper exists")
+assert(existsSync(wrapperPath), "bundled CLI entry exists")
 
 const wrapperSource = readFileSync(wrapperPath, "utf8")
-assert(wrapperSource.startsWith("#!/usr/bin/env node\n"), "CLI wrapper starts with a Node shebang")
+assert(wrapperSource.startsWith("#!/usr/bin/env node\n"), "bundled CLI entry starts with a Node shebang")
+assert(
+  !wrapperSource.includes("../src/Main.res.mjs"),
+  "bundled CLI entry does not import the generated source entry"
+)
 
 const wrapperMode = statSync(wrapperPath).mode
 assert((wrapperMode & 0o111) !== 0, "CLI wrapper is executable")
@@ -45,19 +49,19 @@ try {
 
 assert(
   loggedLines.includes("Install package is-even"),
-  "CLI wrapper launches the compiled add command"
+  "bundled CLI entry launches the compiled add command"
 )
 
 const cliModule = await import(`${cliUrl.href}?publish-auth-test`)
-let publishBaseUrl = null
+let runAuthCalled = false
 
 console.log = (...args) => {
   loggedLines.push(args.join(" "))
 }
 
 try {
-  await cliModule.runPublishAuthCheckWith("https://staging.example.com", publishBaseUrl_ => {
-    publishBaseUrl = publishBaseUrl_
+  await cliModule.runPublishAuthCheckWith(() => {
+    runAuthCalled = true
     return Promise.resolve({
       githubLogin: "octocat",
       displayName: undefined,
@@ -69,8 +73,8 @@ try {
 }
 
 assert(
-  publishBaseUrl === "https://staging.example.com",
-  "publish auth helper receives the resolved publish base url"
+  runAuthCalled,
+  "publish auth helper calls the auth implementation without URL configuration"
 )
 assert(
   loggedLines.includes("Authenticated as octocat"),

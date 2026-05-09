@@ -1,11 +1,11 @@
 import {
   cacheFilePathFor,
   isAccessTokenUsable,
+  publishBaseUrl,
   runPublishAuth,
   selectAuthStrategy,
 } from "../src/js/PublishOAuth.mjs"
 
-const publishBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api/publish"
 const authorizationServerMetadataUrl =
   "https://rescript-binding-registry.josh-401.workers.dev/.well-known/oauth-authorization-server"
 const authorizationServerMetadata = {
@@ -96,7 +96,6 @@ assert(selectAuthStrategy(null, now) === "interactive", "missing bundle uses int
 let reuseMeAuth = null
 
 const reuseResult = await runPublishAuth({
-  publishBaseUrl,
   deps: {
     now: () => now,
     platform: "linux",
@@ -140,7 +139,6 @@ let refreshWrite = null
 let refreshMeAuth = null
 
 const refreshResult = await runPublishAuth({
-  publishBaseUrl,
   deps: {
     now: () => now,
     platform: "linux",
@@ -205,7 +203,6 @@ let refreshFailureMessage = null
 
 try {
   await runPublishAuth({
-    publishBaseUrl,
     deps: {
       now: () => now,
       platform: "linux",
@@ -252,7 +249,6 @@ const invalidGrantTokenBodies = []
 let invalidGrantWrite = null
 
 const invalidGrantResult = await runPublishAuth({
-  publishBaseUrl,
   deps: {
     now: () => now,
     platform: "linux",
@@ -346,7 +342,6 @@ let revokedWrite = null
 const revokedMeAuth = []
 
 const revokedResult = await runPublishAuth({
-  publishBaseUrl,
   deps: {
     now: () => now,
     platform: "linux",
@@ -414,7 +409,6 @@ let recoveryWrite = null
 let recoveryTokenBody = null
 
 const recoveryResult = await runPublishAuth({
-  publishBaseUrl,
   deps: {
     now: () => now,
     platform: "linux",
@@ -501,7 +495,6 @@ let savedInteractiveBundle = null
 let interactiveMeAuth = null
 
 const interactiveResult = await runPublishAuth({
-  publishBaseUrl,
   deps: {
     now: () => now,
     platform: "linux",

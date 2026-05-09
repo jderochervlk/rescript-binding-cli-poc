@@ -8,6 +8,7 @@ import path from "node:path"
 const joinPath = path.posix.join
 const dirnamePath = path.posix.dirname
 const normalizeBasePath = homeDir => homeDir.replaceAll("\\", "/")
+export const publishBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api/publish"
 
 export const cacheFilePathFor = ({
   platform = process.platform,
@@ -207,13 +208,13 @@ const isInteractiveRecoveryError = error =>
   error?.payload?.error === "invalid_grant" ||
   error?.payload?.error === "invalid_client"
 
-const discoverAuthorizationServer = async ({ publishBaseUrl, fetchImpl }) => {
+const discoverAuthorizationServer = async ({ fetchImpl }) => {
   const metadataUrl = new URL("/.well-known/oauth-authorization-server", publishBaseUrl)
   const response = await fetchImpl(metadataUrl.toString(), {})
   return readJson(response)
 }
 
-const registerPublicClient = async ({ metadata, redirectUri, publishBaseUrl, fetchImpl }) => {
+const registerPublicClient = async ({ metadata, redirectUri, fetchImpl }) => {
   const response = await fetchImpl(metadata.registration_endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -229,15 +230,7 @@ const registerPublicClient = async ({ metadata, redirectUri, publishBaseUrl, fet
   return readJson(response)
 }
 
-const exchangeCodeForToken = async ({
-  metadata,
-  clientId,
-  redirectUri,
-  code,
-  codeVerifier,
-  publishBaseUrl,
-  fetchImpl,
-}) => {
+const exchangeCodeForToken = async ({ metadata, clientId, redirectUri, code, codeVerifier, fetchImpl }) => {
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     client_id: clientId,
@@ -256,13 +249,7 @@ const exchangeCodeForToken = async ({
   return readJson(response)
 }
 
-const refreshTokenBundle = async ({
-  metadata,
-  clientId,
-  refreshToken,
-  publishBaseUrl,
-  fetchImpl,
-}) => {
+const refreshTokenBundle = async ({ metadata, clientId, refreshToken, fetchImpl }) => {
   const body = new URLSearchParams({
     grant_type: "refresh_token",
     refresh_token: refreshToken,
@@ -279,7 +266,7 @@ const refreshTokenBundle = async ({
   return readJson(response)
 }
 
-const buildTokenBundle = ({ tokenResponse, metadata, clientId, publishBaseUrl, now, previous }) => ({
+const buildTokenBundle = ({ tokenResponse, metadata, clientId, now, previous }) => ({
   accessToken: tokenResponse.access_token,
   refreshToken: tokenResponse.refresh_token ?? previous?.refreshToken ?? null,
   expiresAt: now + tokenResponse.expires_in * 1000,
@@ -291,7 +278,7 @@ const buildTokenBundle = ({ tokenResponse, metadata, clientId, publishBaseUrl, n
   publishBaseUrl,
 })
 
-const fetchCurrentIdentity = async ({ publishBaseUrl, accessToken, fetchImpl }) => {
+const fetchCurrentIdentity = async ({ accessToken, fetchImpl }) => {
   const response = await fetchImpl(`${publishBaseUrl}/v1/me`, {
     method: "GET",
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -300,7 +287,7 @@ const fetchCurrentIdentity = async ({ publishBaseUrl, accessToken, fetchImpl }) 
   return readJson(response)
 }
 
-export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
+export const runPublishAuth = async ({ deps = {} } = {}) => {
   const fetchImpl = deps.fetch ?? globalThis.fetch
   const now = deps.now ?? Date.now
   const platform = deps.platform ?? process.platform
@@ -327,7 +314,7 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
 
   const loadMetadata = async () => {
     if (metadataPromise === null) {
-      metadataPromise = discoverAuthorizationServer({ publishBaseUrl, fetchImpl })
+      metadataPromise = discoverAuthorizationServer({ fetchImpl })
     }
 
     return metadataPromise
@@ -339,7 +326,6 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
       metadata,
       clientId: bundle.clientId,
       refreshToken: bundle.refreshToken,
-      publishBaseUrl,
       fetchImpl,
     })
 
@@ -347,7 +333,6 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
       tokenResponse: refreshed,
       metadata,
       clientId: bundle.clientId,
-      publishBaseUrl,
       now: now(),
       previous: bundle,
     })
@@ -355,7 +340,6 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
     await writeCache(cachePath, nextBundle)
 
     return fetchCurrentIdentity({
-      publishBaseUrl,
       accessToken: nextBundle.accessToken,
       fetchImpl,
     })
@@ -372,7 +356,6 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
       const client = await registerPublicClient({
         metadata,
         redirectUri: loopback.redirectUri,
-        publishBaseUrl,
         fetchImpl,
       })
 
@@ -394,7 +377,6 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
         redirectUri: loopback.redirectUri,
         code,
         codeVerifier,
-        publishBaseUrl,
         fetchImpl,
       })
 
@@ -402,7 +384,6 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
         tokenResponse,
         metadata,
         clientId: client.client_id,
-        publishBaseUrl,
         now: now(),
         previous: null,
       })
@@ -410,7 +391,6 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
       await writeCache(cachePath, nextBundle)
 
       return fetchCurrentIdentity({
-        publishBaseUrl,
         accessToken: nextBundle.accessToken,
         fetchImpl,
       })
@@ -422,7 +402,6 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
   if (strategy === "reuse") {
     try {
       return await fetchCurrentIdentity({
-        publishBaseUrl,
         accessToken: cachedBundle.accessToken,
         fetchImpl,
       })

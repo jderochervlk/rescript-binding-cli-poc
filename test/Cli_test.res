@@ -49,16 +49,6 @@ let () = {
   )
 
   assertTrue(
-    Cli.publishBaseUrlFrom(None) == "https://rescript-binding-registry.josh-401.workers.dev/api/publish",
-    "publish base url defaults to worker publish api route",
-  )
-
-  assertTrue(
-    Cli.publishBaseUrlFrom(Some("https://staging.example.com")) == "https://staging.example.com",
-    "publish base url honors env override",
-  )
-
-  assertTrue(
     Cli.authDisplayName(~githubLogin=Some("octocat"), ~email=None, ~displayName=None) == "octocat",
     "github login is the preferred identity label",
   )

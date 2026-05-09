@@ -4,15 +4,18 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "rescript build",
+        "build": "npm run build:res && npm run build:bin",
+        "build:res": "rescript build",
+        "build:bin": "rolldown -c && node scripts/make-bin-executable.mjs",
         "clean": "rescript clean",
-        "test": "rescript build && node test/Validation_test.res.mjs && node test/Cli_test.res.mjs && node test/PublishOAuth_test.mjs && node test/Worker_test.mjs && node test/Bin_test.mjs && node test/D1_test.mjs"
+        "test": "npm run build && node test/Validation_test.res.mjs && node test/Cli_test.res.mjs && node test/PublishOAuth_test.mjs && node test/Worker_test.mjs && node test/Bin_test.mjs && node test/D1_test.mjs"
     },
     "devDependencies": {
-        "rescript": "^12.0.0"
+        "rescript": "^12.0.0",
+        "rolldown": "^1.0.0"
     },
     "bin": {
-        "rescript-bindings": "./bin/rescript-bindings.mjs"
+        "rescript-bindings": "./bin/index.mjs"
     },
     "dependencies": {
         "wrangler": "^4.90.0"
