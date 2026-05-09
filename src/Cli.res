@@ -27,32 +27,32 @@ let authDisplayName = (
       | Some(name) => name
       | None => "unknown-user"
       }
-      }
     }
+  }
 
 let runPublishAuthCheckWith = async (
   ~runAuth: unit => promise<PublishAuthTypes.authIdentity>,
 ): unit => {
   let identity = await runAuth()
-  let label =
-    authDisplayName(
-      ~githubLogin=identity.githubLogin,
-      ~email=identity.email,
-      ~displayName=identity.displayName,
-    )
+  let label = authDisplayName(
+    ~githubLogin=identity.githubLogin,
+    ~email=identity.email,
+    ~displayName=identity.displayName,
+  )
   Console.log("Authenticated as " ++ label)
 }
 
 let runPublishAuthCheck = async (): unit => {
-  await runPublishAuthCheckWith(
-    ~runAuth=PublishOAuth.runPublishAuth,
-  )
+  await runPublishAuthCheckWith(~runAuth=PublishOAuth.runPublishAuth)
 }
+
+let runPublish = async (): unit => await PublishOAuth.runPublish()
 
 let parse = (argv: array<string>): option<(string, string, option<string>)> => {
   switch argv {
   | [_, _, "binding", "add", packageName] => Some(("add", packageName, None))
-  | [_, _, "binding", "add", packageName, "--folder", folder] => Some(("add", packageName, Some(folder)))
+  | [_, _, "binding", "add", packageName, "--folder", folder] =>
+    Some(("add", packageName, Some(folder)))
   | [_, _, "binding", "publish"] => Some(("publish", "", None))
   | _ => None
   }

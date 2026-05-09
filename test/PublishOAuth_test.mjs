@@ -1,17 +1,28 @@
+import { EventEmitter } from "node:events"
 import {
   cacheFilePathFor,
+  defaultOpenBrowser,
   isAccessTokenUsable,
   publishBaseUrl,
+  readOAuthCallback,
   runPublishAuth,
   selectAuthStrategy,
 } from "../src/js/PublishOAuth.mjs"
 
 const authorizationServerMetadataUrl =
-  "https://rescript-binding-registry.josh-401.workers.dev/.well-known/oauth-authorization-server"
+  "https://team.cloudflareaccess.com/.well-known/oauth-authorization-server"
+const resourceMetadataUrl =
+  "https://rescript-binding-registry.josh-401.workers.dev/.well-known/cloudflare-access-protected-resource/api/publish/v1/me"
 const authorizationServerMetadata = {
   authorization_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/authorization",
   token_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/token",
   registration_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/registration",
+}
+const resourceMetadata = {
+  resource: `${publishBaseUrl}/v1/me`,
+  protected: true,
+  team_domain: "team.cloudflareaccess.com",
+  authorization_servers: ["https://team.cloudflareaccess.com"],
 }
 
 const assert = (condition, label) => {
@@ -25,6 +36,27 @@ const jsonResponse = (body, status = 200) =>
     status,
     headers: { "content-type": "application/json" },
   })
+
+const discoveryResponseFor = (url, init = {}) => {
+  if (url === `${publishBaseUrl}/v1/me` && init.redirect === "manual") {
+    return new Response(null, {
+      status: 302,
+      headers: {
+        "www-authenticate": `Cloudflare-Access resource_metadata="${resourceMetadataUrl}"`,
+      },
+    })
+  }
+
+  if (url === resourceMetadataUrl) {
+    return jsonResponse(resourceMetadata)
+  }
+
+  if (url === authorizationServerMetadataUrl) {
+    return jsonResponse(authorizationServerMetadata)
+  }
+
+  return null
+}
 
 const now = 1_716_000_000_000
 
@@ -93,6 +125,63 @@ assert(
 
 assert(selectAuthStrategy(null, now) === "interactive", "missing bundle uses interactive path")
 
+const missingBrowserLogs = []
+
+await defaultOpenBrowser("https://example.com/auth", {
+  platform: "linux",
+  spawn: () => {
+    const child = new EventEmitter()
+    queueMicrotask(() => {
+      const error = new Error("spawn xdg-open ENOENT")
+      error.code = "ENOENT"
+      child.emit("error", error)
+    })
+    return child
+  },
+  log: message => {
+    missingBrowserLogs.push(message)
+  },
+})
+
+assert(
+  missingBrowserLogs.some(message => message.includes("https://example.com/auth")),
+  "missing browser opener prints the auth URL instead of failing"
+)
+
+try {
+  readOAuthCallback({
+    callbackUrl: new URL("http://127.0.0.1:43123/callback"),
+    expectedState: "expected-state",
+  })
+} catch (error) {
+  assert(
+    error.message.includes("Callback query was empty"),
+    "missing callback query reports that the query was empty"
+  )
+}
+
+try {
+  readOAuthCallback({
+    callbackUrl: new URL(
+      "http://127.0.0.1:43123/callback?error=access_denied&error_description=Denied"
+    ),
+    expectedState: "expected-state",
+  })
+} catch (error) {
+  assert(
+    error.message.includes("OAuth callback error: access_denied: Denied"),
+    "OAuth callback error query is surfaced"
+  )
+}
+
+assert(
+  readOAuthCallback({
+    callbackUrl: new URL("http://127.0.0.1:43123/callback?code=auth-code&state=expected-state"),
+    expectedState: "expected-state",
+  }).code === "auth-code",
+  "valid OAuth callback returns the authorization code"
+)
+
 let reuseMeAuth = null
 
 const reuseResult = await runPublishAuth({
@@ -153,8 +242,9 @@ const refreshResult = await runPublishAuth({
       refreshWrite = { cachePath, bundle }
     },
     fetch: async (url, init = {}) => {
-      if (url === authorizationServerMetadataUrl) {
-        return jsonResponse(authorizationServerMetadata)
+      const discoveryResponse = discoveryResponseFor(url, init)
+      if (discoveryResponse) {
+        return discoveryResponse
       }
 
       if (url === authorizationServerMetadata.token_endpoint) {
@@ -216,9 +306,10 @@ try {
       writeCache: async () => {
         throw new Error("refresh failure should not persist cache")
       },
-      fetch: async url => {
-        if (url === authorizationServerMetadataUrl) {
-          return jsonResponse(authorizationServerMetadata)
+      fetch: async (url, init = {}) => {
+        const discoveryResponse = discoveryResponseFor(url, init)
+        if (discoveryResponse) {
+          return discoveryResponse
         }
 
         if (url === authorizationServerMetadata.token_endpoint) {
@@ -266,8 +357,9 @@ const invalidGrantResult = await runPublishAuth({
     codeVerifier: () => "invalid-grant-verifier",
     codeChallengeFromVerifier: () => "invalid-grant-challenge",
     fetch: async (url, init = {}) => {
-      if (url === authorizationServerMetadataUrl) {
-        return jsonResponse(authorizationServerMetadata)
+      const discoveryResponse = discoveryResponseFor(url, init)
+      if (discoveryResponse) {
+        return discoveryResponse
       }
 
       if (url === authorizationServerMetadata.registration_endpoint) {
@@ -356,8 +448,9 @@ const revokedResult = await runPublishAuth({
       revokedWrite = { cachePath, bundle }
     },
     fetch: async (url, init = {}) => {
-      if (url === authorizationServerMetadataUrl) {
-        return jsonResponse(authorizationServerMetadata)
+      const discoveryResponse = discoveryResponseFor(url, init)
+      if (discoveryResponse) {
+        return discoveryResponse
       }
 
       if (url === authorizationServerMetadata.token_endpoint) {
@@ -425,8 +518,9 @@ const recoveryResult = await runPublishAuth({
     codeVerifier: () => "fixed-recovery-verifier",
     codeChallengeFromVerifier: () => "fixed-recovery-challenge",
     fetch: async (url, init = {}) => {
-      if (url === authorizationServerMetadataUrl) {
-        return jsonResponse(authorizationServerMetadata)
+      const discoveryResponse = discoveryResponseFor(url, init)
+      if (discoveryResponse) {
+        return discoveryResponse
       }
 
       if (url === authorizationServerMetadata.registration_endpoint) {
@@ -507,8 +601,9 @@ const interactiveResult = await runPublishAuth({
     codeVerifier: () => "fixed-code-verifier",
     codeChallengeFromVerifier: () => "fixed-code-challenge",
     fetch: async (url, init = {}) => {
-      if (url === authorizationServerMetadataUrl) {
-        return jsonResponse(authorizationServerMetadata)
+      const discoveryResponse = discoveryResponseFor(url, init)
+      if (discoveryResponse) {
+        return discoveryResponse
       }
 
       if (url === authorizationServerMetadata.registration_endpoint) {
@@ -566,7 +661,7 @@ assert(
   "interactive flow uses PKCE challenge"
 )
 assert(
-  interactiveAuthorizationUrl.searchParams.get("resource") === publishBaseUrl,
+  interactiveAuthorizationUrl.searchParams.get("resource") === `${publishBaseUrl}/v1/me`,
   "interactive flow sends resource indicator"
 )
 assert(
