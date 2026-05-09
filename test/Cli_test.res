@@ -28,18 +28,6 @@ let () = {
   )
 
   assertParse(
-    ["node", "src/Main.res.mjs", "binding", "add", "@scope/pkg"],
-    Some(("add", "@scope/pkg", None)),
-    "parse legacy binding add command",
-  )
-
-  assertParse(
-    ["node", "src/Main.res.mjs", "binding", "publish"],
-    Some(("publish", "", None)),
-    "parse legacy binding publish command",
-  )
-
-  assertParse(
     ["node", "src/Main.res.mjs", "binding", "install", "pkg"],
     None,
     "reject unknown command",

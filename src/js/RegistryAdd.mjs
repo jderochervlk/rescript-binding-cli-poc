@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { emitKeypressEvents } from "node:readline"
 import { createInterface } from "node:readline/promises"
 
 export const registryApiBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api"
@@ -66,7 +67,7 @@ const dependencyVersionFrom = (packageJson, dependencyName) => {
   return undefined
 }
 
-const releaseLine = (release, index) => {
+const releaseLine = release => {
   const packageMark =
     release.isPackageCompatible === true
       ? "package match"
@@ -80,7 +81,7 @@ const releaseLine = (release, index) => {
         ? "ReScript mismatch"
         : "ReScript unknown"
 
-  return `${index + 1}. ${release.variantLabel} by ${release.publisherLogin} (${release.peerPackageRange}, ${release.rescriptRange}; ${packageMark}, ${rescriptMark})`
+  return `${release.variantLabel} by ${release.publisherLogin} (${release.peerPackageRange}, ${release.rescriptRange}; ${packageMark}, ${rescriptMark})`
 }
 
 const askWithReadline = async ({ stdin, stdout }, question) => {
@@ -92,24 +93,86 @@ const askWithReadline = async ({ stdin, stdout }, question) => {
   }
 }
 
+const renderReleaseOptions = ({ releases, selectedIndex, stdout }) => {
+  releases.forEach((release, index) => {
+    const prefix = index === selectedIndex ? "\x1b[36m›\x1b[0m" : " "
+    const label = index === selectedIndex ? `\x1b[1m${releaseLine(release)}\x1b[0m` : releaseLine(release)
+    stdout.write(`${prefix} ${label}\n`)
+  })
+}
+
+const selectReleaseWithKeys = (releases, { stdin, stdout }) =>
+  new Promise((resolve, reject) => {
+    let selectedIndex = 0
+    const wasRaw = stdin.isRaw
+
+    const cleanup = () => {
+      stdin.off("keypress", onKeypress)
+      if (stdin.setRawMode) {
+        stdin.setRawMode(wasRaw)
+      }
+      stdin.pause()
+      stdout.write("\x1b[?25h")
+    }
+
+    const finish = value => {
+      cleanup()
+      resolve(value)
+    }
+
+    const fail = error => {
+      cleanup()
+      reject(error)
+    }
+
+    const rerender = () => {
+      stdout.write(`\x1b[${releases.length}A\x1b[0J`)
+      renderReleaseOptions({ releases, selectedIndex, stdout })
+    }
+
+    const onKeypress = (_, key = {}) => {
+      if (key.ctrl && key.name === "c") {
+        stdout.write("\n")
+        fail(new Error("Aborted with Ctrl+C"))
+        return
+      }
+
+      if (key.name === "up" || key.name === "k") {
+        selectedIndex = (selectedIndex - 1 + releases.length) % releases.length
+        rerender()
+        return
+      }
+
+      if (key.name === "down" || key.name === "j") {
+        selectedIndex = (selectedIndex + 1) % releases.length
+        rerender()
+        return
+      }
+
+      if (key.name === "return" || key.name === "enter") {
+        stdout.write("\n")
+        finish(releases[selectedIndex])
+      }
+    }
+
+    emitKeypressEvents(stdin)
+    if (stdin.setRawMode) {
+      stdin.setRawMode(true)
+    }
+    stdout.write("\x1b[?25l")
+    renderReleaseOptions({ releases, selectedIndex, stdout })
+    stdin.on("keypress", onKeypress)
+    stdin.resume()
+  })
+
 const defaultSelectRelease = async (releases, { stdin = process.stdin, stdout = process.stdout, log = console.log } = {}) => {
   if (!stdin.isTTY || !stdout.isTTY) {
     throw new Error("binding add requires an interactive terminal when multiple releases are available")
   }
 
   log("Available binding releases:")
-  releases.forEach((release, index) => {
-    log(`  ${releaseLine(release, index)}`)
-  })
-
-  const answer = (await askWithReadline({ stdin, stdout }, "Select release [1]: ")).trim()
-  const selectedIndex = answer === "" ? 0 : Number.parseInt(answer, 10) - 1
-
-  if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= releases.length) {
-    throw new Error("Invalid release selection")
-  }
-
-  return releases[selectedIndex]
+  log("Use ↑/↓ or j/k, then Enter.")
+  return selectReleaseWithKeys(releases, { stdin, stdout })
 }
 
 const defaultConfirmOverwrite = async (files, { stdin = process.stdin, stdout = process.stdout, log = console.log } = {}) => {

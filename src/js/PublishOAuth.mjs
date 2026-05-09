@@ -1,10 +1,12 @@
 import { spawn } from "node:child_process"
 import { createHash, randomBytes } from "node:crypto"
+import { readdirSync, statSync } from "node:fs"
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises"
 import { createServer } from "node:http"
 import { homedir } from "node:os"
 import path from "node:path"
 import { createInterface } from "node:readline/promises"
+import { search } from "@inquirer/prompts"
 
 const joinPath = path.posix.join
 const dirnamePath = path.posix.dirname
@@ -561,6 +563,24 @@ const dependencyVersionFrom = (packageJson, dependencyName) => {
   return undefined
 }
 
+const dependencyNamesFrom = packageJson => {
+  const names = new Set()
+
+  for (const dependencies of [
+    packageJson.peerDependencies,
+    packageJson.dependencies,
+    packageJson.devDependencies,
+  ]) {
+    for (const name of Object.keys(dependencies ?? {})) {
+      if (name !== "rescript") {
+        names.add(name)
+      }
+    }
+  }
+
+  return [...names].sort((a, b) => a.localeCompare(b))
+}
+
 const promptWithDefault = async (readline, label, defaultValue) => {
   const suffix = defaultValue ? ` [${defaultValue}]` : ""
   const answer = (await readline.question(`${label}${suffix}: `)).trim()
@@ -573,9 +593,103 @@ const promptWithDefault = async (readline, label, defaultValue) => {
   return value
 }
 
+const questionWithDefault = async ({
+  stdin,
+  stdout,
+  label,
+  defaultValue,
+  completer,
+}) => {
+  const readline = createInterface({ input: stdin, output: stdout, completer })
+
+  try {
+    return await promptWithDefault(readline, label, defaultValue)
+  } finally {
+    readline.close()
+  }
+}
+
+const selectPackageName = async ({packageNames, stdin, stdout}) => {
+  if (packageNames.length === 0) {
+    return questionWithDefault({
+      stdin,
+      stdout,
+      label: "Package name",
+    })
+  }
+
+  return search(
+    {
+      message: "Package name",
+      pageSize: 8,
+      source: async term => {
+        const input = term?.trim() ?? ""
+        const matches = packageNames
+          .filter(packageName => input === "" || packageName.includes(input))
+          .map(packageName => ({name: packageName, value: packageName}))
+
+        if (input !== "" && !packageNames.includes(input)) {
+          matches.push({
+            name: `Use custom package "${input}"`,
+            value: input,
+          })
+        }
+
+        return matches
+      },
+    },
+    {input: stdin, output: stdout},
+  )
+}
+
 const confirmPublish = async readline => {
   const answer = (await readline.question("Publish this release? [y/N]: ")).trim().toLowerCase()
   return answer === "y" || answer === "yes"
+}
+
+const confirmPublishWith = async ({ stdin, stdout }) => {
+  const readline = createInterface({ input: stdin, output: stdout })
+
+  try {
+    return await confirmPublish(readline)
+  } finally {
+    readline.close()
+  }
+}
+
+const pathCompleter = cwd => input => {
+  const normalizedInput = input.trim()
+  const inputDirectory = normalizedInput.endsWith(path.sep)
+    ? normalizedInput
+    : path.dirname(normalizedInput)
+  const inputBase = normalizedInput.endsWith(path.sep)
+    ? ""
+    : path.basename(normalizedInput)
+  const displayDirectory = inputDirectory === "." ? "" : inputDirectory
+  const absoluteDirectory = path.resolve(cwd, displayDirectory || ".")
+
+  try {
+    const matches = readdirSync(absoluteDirectory, { withFileTypes: true })
+      .filter(entry => !entry.name.startsWith("."))
+      .filter(entry => entry.name.startsWith(inputBase))
+      .map(entry => {
+        const completedPath = displayDirectory
+          ? path.join(displayDirectory, entry.name)
+          : entry.name
+
+        try {
+          return statSync(path.resolve(cwd, completedPath)).isDirectory()
+            ? `${completedPath}${path.sep}`
+            : completedPath
+        } catch {
+          return completedPath
+        }
+      })
+
+    return [matches.length > 0 ? matches : [], input]
+  } catch {
+    return [[], input]
+  }
 }
 
 const deriveVariantLabel = sourcePath => {
@@ -659,56 +773,54 @@ const promptForPublishInput = async ({
   }
 
   const packageJson = await readProjectPackageJson(cwd)
-  const packageNameDefault =
-    typeof packageJson.name === "string" ? packageJson.name : undefined
-  const packageVersionDefault =
-    typeof packageJson.version === "string" ? packageJson.version : undefined
   const rescriptVersionDefault = dependencyVersionFrom(packageJson, "rescript")
-  const readline = createInterface({ input: stdin, output: stdout })
+  const packageName = await selectPackageName({
+    packageNames: dependencyNamesFrom(packageJson),
+    stdin,
+    stdout,
+  })
+  const packageVersionDefault = dependencyVersionFrom(packageJson, packageName)
+  const sourcePath = await questionWithDefault({
+    stdin,
+    stdout,
+    label: "Binding file or folder",
+    completer: pathCompleter(cwd),
+  })
+  const peerPackageRange = await questionWithDefault({
+    stdin,
+    stdout,
+    label: "Package version",
+    defaultValue: packageVersionDefault,
+  })
+  const rescriptRange = await questionWithDefault({
+    stdin,
+    stdout,
+    label: "ReScript version",
+    defaultValue: rescriptVersionDefault,
+  })
+  const files = await collectBindingFilesFrom({ sourcePath, cwd })
+  const variantLabel = deriveVariantLabel(sourcePath)
 
-  try {
-    const packageName = await promptWithDefault(
-      readline,
-      "Package name",
-      packageNameDefault
-    )
-    const sourcePath = await promptWithDefault(readline, "Binding file or folder")
-    const peerPackageRange = await promptWithDefault(
-      readline,
-      "Package version",
-      packageVersionDefault
-    )
-    const rescriptRange = await promptWithDefault(
-      readline,
-      "ReScript version",
-      rescriptVersionDefault
-    )
-    const files = await collectBindingFilesFrom({ sourcePath, cwd })
-    const variantLabel = deriveVariantLabel(sourcePath)
+  console.log("")
+  console.log("Publish summary:")
+  console.log(`  Package: ${packageName}`)
+  console.log(`  Binding source: ${sourcePath}`)
+  console.log(`  Variant: ${variantLabel}`)
+  console.log(`  Files: ${files.length}`)
+  console.log(`  Package version: ${peerPackageRange}`)
+  console.log(`  ReScript version: ${rescriptRange}`)
+  console.log("")
 
-    console.log("")
-    console.log("Publish summary:")
-    console.log(`  Package: ${packageName}`)
-    console.log(`  Binding source: ${sourcePath}`)
-    console.log(`  Variant: ${variantLabel}`)
-    console.log(`  Files: ${files.length}`)
-    console.log(`  Package version: ${peerPackageRange}`)
-    console.log(`  ReScript version: ${rescriptRange}`)
-    console.log("")
+  if (!(await confirmPublishWith({ stdin, stdout }))) {
+    return null
+  }
 
-    if (!(await confirmPublish(readline))) {
-      return null
-    }
-
-    return {
-      packageName,
-      variantLabel,
-      peerPackageRange,
-      rescriptRange,
-      files,
-    }
-  } finally {
-    readline.close()
+  return {
+    packageName,
+    variantLabel,
+    peerPackageRange,
+    rescriptRange,
+    files,
   }
 }
 

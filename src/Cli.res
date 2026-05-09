@@ -56,10 +56,6 @@ let parse = (argv: array<string>): option<(string, string, option<string>)> => {
   | [_, _, "add", packageName] => Some(("add", packageName, None))
   | [_, _, "add", packageName, "--folder", folder] => Some(("add", packageName, Some(folder)))
   | [_, _, "publish"] => Some(("publish", "", None))
-  | [_, _, "binding", "add", packageName] => Some(("add", packageName, None))
-  | [_, _, "binding", "add", packageName, "--folder", folder] =>
-    Some(("add", packageName, Some(folder)))
-  | [_, _, "binding", "publish"] => Some(("publish", "", None))
   | _ => None
   }
 }

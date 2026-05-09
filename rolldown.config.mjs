@@ -1,7 +1,7 @@
 import { defineConfig } from "rolldown";
 
 export default defineConfig({
-    input: "src/Main.res.mjs",
+    input: "src/Command.mjs",
     platform: "node",
     external: [/^node:/],
     treeshake: true,

@@ -18,6 +18,8 @@
         "rescript-bindings": "./bin/index.mjs"
     },
     "dependencies": {
+        "@inquirer/prompts": "^8.4.2",
+        "commander": "^14.0.3",
         "wrangler": "^4.90.0"
     },
     "files": [
