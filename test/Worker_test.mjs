@@ -11,11 +11,17 @@ const encodeSegment = value => Buffer.from(JSON.stringify(value)).toString("base
 const makeJwt = payload =>
   `${encodeSegment({ alg: "none", typ: "JWT" })}.${encodeSegment(payload)}.signature`
 
-const unauthorized = await worker.fetch(new Request("https://publish.example.com/v1/me"), {}, {})
+const publicApiBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api"
+const publishApiBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api/publish"
+
+const oldProtectedPath = await worker.fetch(new Request(`${publicApiBaseUrl}/v1/me`), {}, {})
+assert(oldProtectedPath.status === 404, "publish identity route is not exposed under public api")
+
+const unauthorized = await worker.fetch(new Request(`${publishApiBaseUrl}/v1/me`), {}, {})
 assert(unauthorized.status === 401, "missing access identity is rejected")
 
 const malformed = await worker.fetch(
-  new Request("https://publish.example.com/v1/me", {
+  new Request(`${publishApiBaseUrl}/v1/me`, {
     headers: {
       "Cf-Access-Jwt-Assertion": "not-a-jwt",
     },
@@ -27,21 +33,21 @@ const malformed = await worker.fetch(
 assert(malformed.status === 401, "malformed access identity is rejected")
 
 const publishUnauthorized = await worker.fetch(
-  new Request("https://publish.example.com/v1/releases", { method: "POST" }),
+  new Request(`${publishApiBaseUrl}/v1/releases`, { method: "POST" }),
   {},
   {}
 )
 assert(publishUnauthorized.status === 401, "publish route requires access identity")
 
 const adminUnauthorized = await worker.fetch(
-  new Request("https://publish.example.com/v1/admin/publishers", { method: "POST" }),
+  new Request(`${publishApiBaseUrl}/v1/admin/publishers`, { method: "POST" }),
   {},
   {}
 )
 assert(adminUnauthorized.status === 401, "admin route requires access identity")
 
 const authorized = await worker.fetch(
-  new Request("https://publish.example.com/v1/me", {
+  new Request(`${publishApiBaseUrl}/v1/me`, {
     headers: {
       "Cf-Access-Jwt-Assertion": makeJwt({ email: "dev@example.com" }),
     },

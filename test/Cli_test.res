@@ -49,8 +49,8 @@ let () = {
   )
 
   assertTrue(
-    Cli.publishBaseUrlFrom(None) == "https://publish.bindings.rescript-lang.org",
-    "publish base url defaults to production hostname",
+    Cli.publishBaseUrlFrom(None) == "https://rescript-binding-registry.josh-401.workers.dev/api/publish",
+    "publish base url defaults to worker publish api route",
   )
 
   assertTrue(

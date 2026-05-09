@@ -56,23 +56,23 @@ type route =
   | NotFound
 
 let routeFrom = (method_: string, pathname: string): route => {
-  if method_ == "GET" && startsWith(pathname, "/v1/packages/") && endsWith(pathname, "/releases") {
+  if method_ == "GET" && startsWith(pathname, "/api/v1/packages/") && endsWith(pathname, "/releases") {
     let parts = split(pathname, "/")
-    switch getAt(parts, 3) {
+    switch getAt(parts, 4) {
     | Some(packageName) => ListPackageReleases(packageName)
     | None => NotFound
     }
-  } else if method_ == "GET" && startsWith(pathname, "/v1/releases/") {
+  } else if method_ == "GET" && startsWith(pathname, "/api/v1/releases/") {
     let parts = split(pathname, "/")
-    switch getAt(parts, 3) {
+    switch getAt(parts, 4) {
     | Some(releaseId) => GetRelease(releaseId)
     | None => NotFound
     }
-  } else if method_ == "GET" && pathname == "/v1/me" {
+  } else if method_ == "GET" && pathname == "/api/publish/v1/me" {
     Me
-  } else if method_ == "POST" && pathname == "/v1/releases" {
+  } else if method_ == "POST" && pathname == "/api/publish/v1/releases" {
     Publish
-  } else if method_ == "POST" && pathname == "/v1/admin/publishers" {
+  } else if method_ == "POST" && pathname == "/api/publish/v1/admin/publishers" {
     AdminPublishers
   } else {
     NotFound

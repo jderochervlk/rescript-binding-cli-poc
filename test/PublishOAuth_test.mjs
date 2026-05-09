@@ -5,7 +5,7 @@ import {
   selectAuthStrategy,
 } from "../src/js/PublishOAuth.mjs"
 
-const publishBaseUrl = "https://publish.example.com"
+const publishBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api/publish"
 const authorizationServerMetadata = {
   authorization_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/authorization",
   token_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/token",
@@ -30,9 +30,9 @@ assert(
   cacheFilePathFor({
     platform: "linux",
     homeDir: "/home/josh",
-    hostname: "publish.bindings.rescript-lang.org",
+    hostname: "rescript-binding-registry.josh-401.workers.dev",
   }) ===
-    "/home/josh/.local/state/rescript-bindings/oauth/publish.bindings.rescript-lang.org.json",
+    "/home/josh/.local/state/rescript-bindings/oauth/rescript-binding-registry.josh-401.workers.dev.json",
   "linux cache path uses XDG state directory"
 )
 
@@ -40,9 +40,9 @@ assert(
   cacheFilePathFor({
     platform: "darwin",
     homeDir: "/Users/josh",
-    hostname: "publish.bindings.rescript-lang.org",
+    hostname: "rescript-binding-registry.josh-401.workers.dev",
   }) ===
-    "/Users/josh/Library/Application Support/rescript-bindings/oauth/publish.bindings.rescript-lang.org.json",
+    "/Users/josh/Library/Application Support/rescript-bindings/oauth/rescript-binding-registry.josh-401.workers.dev.json",
   "macOS cache path uses Application Support"
 )
 
@@ -50,9 +50,9 @@ assert(
   cacheFilePathFor({
     platform: "win32",
     homeDir: "C:/Users/josh/AppData/Roaming",
-    hostname: "publish.bindings.rescript-lang.org",
+    hostname: "rescript-binding-registry.josh-401.workers.dev",
   }) ===
-    "C:/Users/josh/AppData/Roaming/rescript-bindings/oauth/publish.bindings.rescript-lang.org.json",
+    "C:/Users/josh/AppData/Roaming/rescript-bindings/oauth/rescript-binding-registry.josh-401.workers.dev.json",
   "windows cache path uses roaming app data"
 )
 
@@ -60,9 +60,9 @@ assert(
   cacheFilePathFor({
     platform: "win32",
     homeDir: "C:\\Users\\josh\\AppData\\Roaming",
-    hostname: "publish.bindings.rescript-lang.org",
+    hostname: "rescript-binding-registry.josh-401.workers.dev",
   }) ===
-    "C:/Users/josh/AppData/Roaming/rescript-bindings/oauth/publish.bindings.rescript-lang.org.json",
+    "C:/Users/josh/AppData/Roaming/rescript-bindings/oauth/rescript-binding-registry.josh-401.workers.dev.json",
   "windows cache path normalizes backslash base paths"
 )
 

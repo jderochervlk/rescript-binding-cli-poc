@@ -21,3 +21,13 @@ npm test
 ```
 
 `npm test` currently aliases the ReScript build so type-checking and codegen are always enforced.
+
+## API Base
+
+The CLI defaults to the Worker API route:
+
+```text
+https://rescript-binding-registry.josh-401.workers.dev/api/publish
+```
+
+Public registry reads are routed under `/api/v1/...`; protected publish/admin endpoints are routed under `/api/publish/v1/...`. Separate publish/read subdomains are not used.

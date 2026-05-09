@@ -12,7 +12,7 @@ let defaultInstallFolder = (~cwd: string, ~packageName: string, ~variantSlug: st
 let ensureUploadReady = (files: array<fileEntry>): array<normalizedFileEntry> =>
   Validation.validateFileEntries(files)
 
-let defaultPublishBaseUrl = "https://publish.bindings.rescript-lang.org"
+let defaultPublishBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api/publish"
 
 let publishBaseUrlFrom = (override_: option<string>): string =>
   switch override_ {

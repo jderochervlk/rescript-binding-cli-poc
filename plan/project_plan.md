@@ -88,11 +88,15 @@ No checked-in publish manifest is required in v1. The CLI constructs the manifes
 
 ### Runtime
 
-Use a single Cloudflare Worker codebase exposing two route groups:
+Use a single Cloudflare Worker codebase exposed at:
 
-- `bindings.rescript-lang.org`
+- `https://rescript-binding-registry.josh-401.workers.dev`
+
+The API lives under the `/api` route group:
+
+- `/api/v1/packages/...` and `/api/v1/releases/...`
   - public read endpoints for listing and fetching binding releases
-- `publish.bindings.rescript-lang.org`
+- `/api/publish/v1/me`, `/api/publish/v1/releases`, and `/api/publish/v1/admin/...`
   - protected publish and admin endpoints behind Cloudflare Access
 
 The Worker is responsible for:
@@ -109,7 +113,7 @@ Protected routes are fronted by Cloudflare Access configured with GitHub as the 
 
 Publish/auth flow:
 
-1. Contributor runs `cloudflared access login https://publish.bindings.rescript-lang.org`.
+1. Contributor authenticates against `https://rescript-binding-registry.josh-401.workers.dev/api/publish`.
 2. Contributor runs `rescript binding publish`.
 3. The CLI sends the publish request with the Access token/session expected by the protected endpoint.
 4. The Worker validates the Access assertion.
@@ -212,7 +216,7 @@ This is append-only and records successful publish activity.
 
 ### Public API
 
-#### `GET /v1/packages/:package/releases`
+#### `GET /api/v1/packages/:package/releases`
 
 Returns all active releases for a package.
 
@@ -242,7 +246,7 @@ Example response fields:
 - `isRescriptCompatible`
 - `compatibilityRank`
 
-#### `GET /v1/releases/:id`
+#### `GET /api/v1/releases/:id`
 
 Returns:
 
@@ -254,7 +258,7 @@ This is the install payload consumed by `rescript binding add`.
 
 ### Protected API
 
-#### `GET /v1/me`
+#### `GET /api/publish/v1/me`
 
 Returns:
 
@@ -263,7 +267,7 @@ Returns:
 
 This can be used by the CLI to fail early before prompting for publish input.
 
-#### `POST /v1/releases`
+#### `POST /api/publish/v1/releases`
 
 Creates a new release from an interactive CLI publish flow.
 
@@ -293,7 +297,7 @@ On success:
 - writes an audit log row
 - returns the published release metadata
 
-#### `POST /v1/admin/publishers`
+#### `POST /api/publish/v1/admin/publishers`
 
 Administrative endpoint for adding or deactivating approved publishers. This is not required for the consumer-facing MVP, but the API boundary should exist from the beginning.
 
@@ -331,7 +335,7 @@ Inputs:
 
 Publish behavior:
 
-1. Verify contributor auth by calling `GET /v1/me`.
+1. Verify contributor auth by calling `GET /api/publish/v1/me`.
 2. Prompt for all release metadata.
 3. Prompt for the local folder path.
 4. Walk the folder recursively.
