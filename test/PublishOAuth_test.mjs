@@ -6,6 +6,8 @@ import {
 } from "../src/js/PublishOAuth.mjs"
 
 const publishBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api/publish"
+const authorizationServerMetadataUrl =
+  "https://rescript-binding-registry.josh-401.workers.dev/.well-known/oauth-authorization-server"
 const authorizationServerMetadata = {
   authorization_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/authorization",
   token_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/token",
@@ -153,7 +155,7 @@ const refreshResult = await runPublishAuth({
       refreshWrite = { cachePath, bundle }
     },
     fetch: async (url, init = {}) => {
-      if (url === `${publishBaseUrl}/.well-known/oauth-authorization-server`) {
+      if (url === authorizationServerMetadataUrl) {
         return jsonResponse(authorizationServerMetadata)
       }
 
@@ -218,7 +220,7 @@ try {
         throw new Error("refresh failure should not persist cache")
       },
       fetch: async url => {
-        if (url === `${publishBaseUrl}/.well-known/oauth-authorization-server`) {
+        if (url === authorizationServerMetadataUrl) {
           return jsonResponse(authorizationServerMetadata)
         }
 
@@ -268,7 +270,7 @@ const invalidGrantResult = await runPublishAuth({
     codeVerifier: () => "invalid-grant-verifier",
     codeChallengeFromVerifier: () => "invalid-grant-challenge",
     fetch: async (url, init = {}) => {
-      if (url === `${publishBaseUrl}/.well-known/oauth-authorization-server`) {
+      if (url === authorizationServerMetadataUrl) {
         return jsonResponse(authorizationServerMetadata)
       }
 
@@ -359,7 +361,7 @@ const revokedResult = await runPublishAuth({
       revokedWrite = { cachePath, bundle }
     },
     fetch: async (url, init = {}) => {
-      if (url === `${publishBaseUrl}/.well-known/oauth-authorization-server`) {
+      if (url === authorizationServerMetadataUrl) {
         return jsonResponse(authorizationServerMetadata)
       }
 
@@ -429,7 +431,7 @@ const recoveryResult = await runPublishAuth({
     codeVerifier: () => "fixed-recovery-verifier",
     codeChallengeFromVerifier: () => "fixed-recovery-challenge",
     fetch: async (url, init = {}) => {
-      if (url === `${publishBaseUrl}/.well-known/oauth-authorization-server`) {
+      if (url === authorizationServerMetadataUrl) {
         return jsonResponse(authorizationServerMetadata)
       }
 
@@ -512,7 +514,7 @@ const interactiveResult = await runPublishAuth({
     codeVerifier: () => "fixed-code-verifier",
     codeChallengeFromVerifier: () => "fixed-code-challenge",
     fetch: async (url, init = {}) => {
-      if (url === `${publishBaseUrl}/.well-known/oauth-authorization-server`) {
+      if (url === authorizationServerMetadataUrl) {
         return jsonResponse(authorizationServerMetadata)
       }
 

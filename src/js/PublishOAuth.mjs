@@ -208,7 +208,8 @@ const isInteractiveRecoveryError = error =>
   error?.payload?.error === "invalid_client"
 
 const discoverAuthorizationServer = async ({ publishBaseUrl, fetchImpl }) => {
-  const response = await fetchImpl(`${publishBaseUrl}/.well-known/oauth-authorization-server`, {})
+  const metadataUrl = new URL("/.well-known/oauth-authorization-server", publishBaseUrl)
+  const response = await fetchImpl(metadataUrl.toString(), {})
   return readJson(response)
 }
 
