@@ -13,5 +13,8 @@
     },
     "bin": {
         "rescript-bindings": "./bin/rescript-bindings.mjs"
+    },
+    "dependencies": {
+        "wrangler": "^4.90.0"
     }
 }
