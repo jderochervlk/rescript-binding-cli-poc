@@ -19,5 +19,10 @@
     },
     "dependencies": {
         "wrangler": "^4.90.0"
-    }
+    },
+    "files": [
+        "README.md",
+        "package.json",
+        "bin"
+    ]
 }

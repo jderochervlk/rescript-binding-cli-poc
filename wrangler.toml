@@ -6,3 +6,7 @@ compatibility_date = "2026-04-19"
 binding = "DB"
 database_name = "rescript-binding-registry"
 database_id = "a47ebb32-301a-4d36-9692-0ec5b07d8e7a"
+
+[observability.logs]
+enabled = true
+invocation_logs = true
