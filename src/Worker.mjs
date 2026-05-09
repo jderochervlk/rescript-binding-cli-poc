@@ -101,6 +101,153 @@ const sha256Hex = async value => {
 const publisherLabelFrom = identity =>
   identity.githubLogin ?? identity.email ?? identity.displayName ?? "unknown-user"
 
+const decodePathValue = value => {
+  try {
+    return decodeURIComponent(value)
+  } catch {
+    throw new Error(`Invalid encoded path value: ${value}`)
+  }
+}
+
+const releaseFromRow = row => ({
+  id: row.id,
+  packageName: row.package_name,
+  variantLabel: row.variant_label,
+  variantSlug: row.variant_slug,
+  publisherLogin: row.publisher_login,
+  publisherDisplayName: row.publisher_display_name,
+  peerPackageRange: row.peer_package_range,
+  rescriptRange: row.rescript_range,
+  description: row.description,
+  createdAt: row.created_at,
+})
+
+const releaseWithCompatibility = ({ row, packageVersion, rescriptVersion }) => {
+  const release = releaseFromRow(row)
+  const isPackageCompatible = packageVersion
+    ? packageVersion === release.peerPackageRange
+    : null
+  const isRescriptCompatible = rescriptVersion
+    ? rescriptVersion === release.rescriptRange
+    : null
+
+  return {
+    ...release,
+    isPackageCompatible,
+    isRescriptCompatible,
+    compatibilityRank:
+      (isPackageCompatible === true ? 2 : 0) + (isRescriptCompatible === true ? 1 : 0),
+  }
+}
+
+const handleListPackageReleases = async ({ env, packageName, url }) => {
+  if (!env?.DB) {
+    return json({ error: "D1 binding DB is not configured" }, 500)
+  }
+
+  let decodedPackageName
+  try {
+    decodedPackageName = decodePathValue(packageName)
+  } catch (error) {
+    return badRequest(error.message)
+  }
+
+  const packageVersion = url.searchParams.get("packageVersion")
+  const rescriptVersion = url.searchParams.get("rescriptVersion")
+  const { results } = await env.DB
+    .prepare(
+      `SELECT
+        id,
+        package_name,
+        variant_label,
+        variant_slug,
+        publisher_login,
+        publisher_display_name,
+        peer_package_range,
+        rescript_range,
+        description,
+        created_at
+      FROM binding_releases
+      WHERE package_name = ?
+        AND status = 'published'
+      ORDER BY created_at DESC`
+    )
+    .bind(decodedPackageName)
+    .all()
+  const releases = results
+    .map(row => releaseWithCompatibility({ row, packageVersion, rescriptVersion }))
+    .sort((a, b) => {
+      if (b.compatibilityRank !== a.compatibilityRank) {
+        return b.compatibilityRank - a.compatibilityRank
+      }
+
+      return b.createdAt.localeCompare(a.createdAt)
+    })
+
+  return json({ releases })
+}
+
+const handleGetRelease = async ({ env, releaseId }) => {
+  if (!env?.DB) {
+    return json({ error: "D1 binding DB is not configured" }, 500)
+  }
+
+  let decodedReleaseId
+  try {
+    decodedReleaseId = decodePathValue(releaseId)
+  } catch (error) {
+    return badRequest(error.message)
+  }
+
+  const row = await env.DB
+    .prepare(
+      `SELECT
+        id,
+        package_name,
+        variant_label,
+        variant_slug,
+        publisher_login,
+        publisher_display_name,
+        peer_package_range,
+        rescript_range,
+        description,
+        created_at
+      FROM binding_releases
+      WHERE id = ?
+        AND status = 'published'`
+    )
+    .bind(decodedReleaseId)
+    .first()
+
+  if (!row) {
+    return json({ error: "Release not found" }, 404)
+  }
+
+  const { results } = await env.DB
+    .prepare(
+      `SELECT
+        relative_path,
+        content,
+        sha256,
+        bytes
+      FROM binding_files
+      WHERE release_id = ?
+      ORDER BY relative_path ASC`
+    )
+    .bind(decodedReleaseId)
+    .all()
+
+  return json({
+    ...releaseFromRow(row),
+    files: results.map(file => ({
+      relativePath: file.relative_path,
+      content: file.content,
+      sha256: file.sha256,
+      bytes: file.bytes,
+    })),
+  })
+}
+
 const insertRelease = async ({ db, input, files, identity }) => {
   const variantSlug = Validation.safeSlug(input.variantLabel)
   const filesWithSha = await Promise.all(
@@ -278,6 +425,14 @@ export default {
 
     if (isProtectedRoute(route) && !identity) {
       return json({ error: "Missing Access identity" }, 401)
+    }
+
+    if (typeof route === "object" && route.TAG === "ListPackageReleases") {
+      return handleListPackageReleases({ env, packageName: route._0, url })
+    }
+
+    if (typeof route === "object" && route.TAG === "GetRelease") {
+      return handleGetRelease({ env, releaseId: route._0 })
     }
 
     if (route === "Me") {

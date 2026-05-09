@@ -10,29 +10,33 @@ let assertParse = (argv, expected, label) => {
 
 let () = {
   assertParse(
-    ["node", "src/Main.res.mjs", "binding", "add", "@scope/pkg"],
+    ["node", "src/Main.res.mjs", "add", "@scope/pkg"],
     Some(("add", "@scope/pkg", None)),
     "parse add command",
   )
 
   assertParse(
-    [
-      "node",
-      "src/Main.res.mjs",
-      "binding",
-      "add",
-      "@scope/pkg",
-      "--folder",
-      "vendor/bindings",
-    ],
+    ["node", "src/Main.res.mjs", "add", "@scope/pkg", "--folder", "vendor/bindings"],
     Some(("add", "@scope/pkg", Some("vendor/bindings"))),
     "parse add command with explicit folder",
   )
 
   assertParse(
-    ["node", "src/Main.res.mjs", "binding", "publish"],
+    ["node", "src/Main.res.mjs", "publish"],
     Some(("publish", "", None)),
     "parse publish command",
+  )
+
+  assertParse(
+    ["node", "src/Main.res.mjs", "binding", "add", "@scope/pkg"],
+    Some(("add", "@scope/pkg", None)),
+    "parse legacy binding add command",
+  )
+
+  assertParse(
+    ["node", "src/Main.res.mjs", "binding", "publish"],
+    Some(("publish", "", None)),
+    "parse legacy binding publish command",
   )
 
   assertParse(
@@ -41,8 +45,11 @@ let () = {
     "reject unknown command",
   )
 
-  let defaultFolder =
-    Cli.defaultInstallFolder(~cwd="/tmp/project", ~packageName="@scope/pkg", ~variantSlug="web")
+  let defaultFolder = Cli.defaultInstallFolder(
+    ~cwd="/tmp/project",
+    ~packageName="@scope/pkg",
+    ~variantSlug="web",
+  )
   assertTrue(
     defaultFolder == "/tmp/project/src/bindings/@scope/pkg/web",
     "default install folder is derived from cwd/package/variant",
@@ -54,8 +61,11 @@ let () = {
   )
 
   assertTrue(
-    Cli.authDisplayName(~githubLogin=None, ~email=Some("dev@example.com"), ~displayName=None) ==
-      "dev@example.com",
+    Cli.authDisplayName(
+      ~githubLogin=None,
+      ~email=Some("dev@example.com"),
+      ~displayName=None,
+    ) == "dev@example.com",
     "email is the fallback identity label",
   )
 

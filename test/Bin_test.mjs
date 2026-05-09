@@ -38,7 +38,7 @@ console.log = (...args) => {
   loggedLines.push(args.join(" "))
 }
 
-process.argv = [process.execPath, wrapperPath, "binding", "add", "is-even"]
+process.argv = [process.execPath, wrapperPath, "binding", "install", "is-even"]
 
 try {
   await import(`${wrapperUrl.href}?bin-test`)
@@ -48,8 +48,8 @@ try {
 }
 
 assert(
-  loggedLines.includes("Install package is-even"),
-  "bundled CLI entry launches the compiled add command"
+  loggedLines.includes("  rescript-bindings add <package> [--folder <path>]"),
+  "bundled CLI entry launches the compiled command"
 )
 
 const cliModule = await import(`${cliUrl.href}?publish-auth-test`)

@@ -2,8 +2,8 @@ open RegistryTypes
 
 let usage = () => {
   Console.log("Usage:")
-  Console.log("  rescript binding add <package> [--folder <path>]")
-  Console.log("  rescript binding publish")
+  Console.log("  rescript-bindings add <package> [--folder <path>]")
+  Console.log("  rescript-bindings publish")
 }
 
 let defaultInstallFolder = (~cwd: string, ~packageName: string, ~variantSlug: string): string =>
@@ -48,8 +48,14 @@ let runPublishAuthCheck = async (): unit => {
 
 let runPublish = async (): unit => await PublishOAuth.runPublish()
 
+let runAdd = async (~packageName: string, ~folder: option<string>): unit =>
+  await RegistryAdd.runAdd(packageName, folder)
+
 let parse = (argv: array<string>): option<(string, string, option<string>)> => {
   switch argv {
+  | [_, _, "add", packageName] => Some(("add", packageName, None))
+  | [_, _, "add", packageName, "--folder", folder] => Some(("add", packageName, Some(folder)))
+  | [_, _, "publish"] => Some(("publish", "", None))
   | [_, _, "binding", "add", packageName] => Some(("add", packageName, None))
   | [_, _, "binding", "add", packageName, "--folder", folder] =>
     Some(("add", packageName, Some(folder)))
