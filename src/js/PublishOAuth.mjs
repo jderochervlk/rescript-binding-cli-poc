@@ -871,8 +871,6 @@ export const runPublish = async ({ deps = {} } = {}) => {
   }
 
   console.log(
-    `${result.packageName}/${result.variantLabel} (${result.fileCount} file${
-      result.fileCount === 1 ? "" : "s"
-    })`
+    `${result.packageName} (${result.fileCount} file${result.fileCount === 1 ? "" : "s"})`
   )
 }
