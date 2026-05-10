@@ -1,5 +1,31 @@
 # ReScript Binding Registry POC
 
+## Use The CLI
+
+Install published bindings into a ReScript project:
+
+```bash
+pnpx @jvlk/rescript-bindings add jotai
+```
+
+Publish local bindings:
+
+```bash
+pnpx @jvlk/rescript-bindings publish
+```
+
+When the package argument is omitted, `add` offers an interactive selector populated from `peerDependencies`, `dependencies`, and `devDependencies` in the local `package.json`. The release picker shows author, JavaScript package compatibility, and ReScript compatibility in a table.
+
+For single-file releases, `add` prompts for the install file path and defaults to a ReScript-safe PascalCase filename derived from the package name, for example:
+
+```text
+src/bindings/InquirerPrompts.res
+```
+
+The user may choose another directory, but the final file basename is normalized to a valid ReScript module filename. For example, `custom/path/inquirerPrompts.res` writes `custom/path/InquirerPrompts.res`.
+
+`publish` authenticates through Cloudflare Access OAuth for CLIs, prompts for package metadata and source files, and sends releases to the protected publish API.
+
 This repository is a pnpm monorepo. The current package is implemented in **ReScript v12** with a Node CLI bundle and a Cloudflare Worker registry API.
 
 ## Layout
@@ -30,33 +56,12 @@ pnpm test
 
 `pnpm build` type-checks ReScript and regenerates `packages/cli/bin/index.mjs`. `pnpm test` runs the build and the current script-based test suite.
 
-## CLI
-
-Install published bindings:
+## Local CLI
 
 ```bash
-node ./packages/cli/bin/index.mjs add
-node ./packages/cli/bin/index.mjs add @inquirer/prompts
-node ./packages/cli/bin/index.mjs add @inquirer/prompts --folder vendor/bindings
-```
-
-When the package argument is omitted, `add` offers an interactive selector populated from `peerDependencies`, `dependencies`, and `devDependencies` in the local `package.json`. The release picker shows author, JavaScript package compatibility, and ReScript compatibility in a table.
-
-For single-file releases, `add` prompts for the install file path and defaults to a ReScript-safe PascalCase filename derived from the package name, for example:
-
-```text
-src/bindings/InquirerPrompts.res
-```
-
-The user may choose another directory, but the final file basename is normalized to a valid ReScript module filename. For example, `custom/path/inquirerPrompts.res` writes `custom/path/InquirerPrompts.res`.
-
-Publish bindings:
-
-```bash
+node ./packages/cli/bin/index.mjs add jotai
 node ./packages/cli/bin/index.mjs publish
 ```
-
-`publish` authenticates through Cloudflare Access OAuth for CLIs, prompts for package metadata and source files, and sends releases to the protected publish API.
 
 ## Worker
 
