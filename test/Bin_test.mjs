@@ -50,7 +50,8 @@ const importBinWithArgs = async (args, tag) => {
   }
 
   try {
-    await import(`${wrapperUrl.href}?${tag}`)
+    const module = await import(`${wrapperUrl.href}?${tag}`)
+    await module.ready
     await new Promise(resolve => setImmediate(resolve))
     return { stdout, stderr, exitCode: process.exitCode }
   } finally {

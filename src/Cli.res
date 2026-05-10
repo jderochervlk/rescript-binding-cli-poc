@@ -43,10 +43,10 @@ let runPublishAuthCheckWith = async (
 }
 
 let runPublishAuthCheck = async (): unit => {
-  await runPublishAuthCheckWith(~runAuth=PublishOAuth.runPublishAuth)
+  await runPublishAuthCheckWith(~runAuth=() => PublishOAuth.runPublishAuth(None))
 }
 
-let runPublish = async (): unit => await PublishOAuth.runPublish()
+let runPublish = async (): unit => await PublishOAuth.runPublish(None)
 
 let runAdd = async (~packageName: string, ~folder: option<string>): unit =>
   await RegistryAdd.runAdd(packageName, folder)

@@ -1,5 +1,5 @@
 name = "rescript-binding-registry"
-main = "js/Worker.mjs"
+main = "src/Worker.res.mjs"
 compatibility_date = "2026-04-19"
 
 [[d1_databases]]

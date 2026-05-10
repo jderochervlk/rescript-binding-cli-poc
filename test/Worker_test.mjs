@@ -1,4 +1,4 @@
-import worker from "../js/Worker.mjs"
+import worker from "../src/Worker.res.mjs"
 
 const assert = (condition, label) => {
   if (!condition) {

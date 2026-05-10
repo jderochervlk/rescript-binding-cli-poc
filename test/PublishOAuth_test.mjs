@@ -8,7 +8,7 @@ import {
   runPublish,
   runPublishAuth,
   selectAuthStrategy,
-} from "../js/PublishOAuth.mjs"
+} from "../src/bindings/PublishOAuth.res.mjs"
 
 const authorizationServerMetadataUrl =
   "https://team.cloudflareaccess.com/.well-known/oauth-authorization-server"

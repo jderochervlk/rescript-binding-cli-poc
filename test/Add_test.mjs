@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { registryApiBaseUrl, runAdd } from "../js/RegistryAdd.mjs"
+import { registryApiBaseUrl, runAddWithDeps } from "../src/bindings/RegistryAdd.res.mjs"
 
 const assert = (condition, label) => {
   if (!condition) {
@@ -91,13 +91,11 @@ try {
   const requests = []
   const logs = []
 
-  await runAdd("is-even", undefined, {
-    deps: {
-      cwd: installCwd,
-      fetch: makeFetch(requests),
-      selectRelease: async releases => releases[0],
-      log: message => logs.push(message),
-    },
+  await runAddWithDeps("is-even", undefined, {
+    cwd: installCwd,
+    fetch: makeFetch(requests),
+    selectRelease: async releases => releases[0],
+    log: message => logs.push(message),
   })
 
   const installed = await readFile(
@@ -124,13 +122,11 @@ try {
 
 const customFolderCwd = await makeProject()
 try {
-  await runAdd("is-even", "vendor/bindings", {
-    deps: {
-      cwd: customFolderCwd,
-      fetch: makeFetch([]),
-      selectRelease: async releases => releases[0],
-      log: () => {},
-    },
+  await runAddWithDeps("is-even", "vendor/bindings", {
+    cwd: customFolderCwd,
+    fetch: makeFetch([]),
+    selectRelease: async releases => releases[0],
+    log: () => {},
   })
 
   const installed = await readFile(
@@ -168,17 +164,15 @@ try {
     files: [{ relativePath: "prompts.res", content: "let prompts = true\n" }],
   }
 
-  await runAdd("@inquirer/prompts", undefined, {
-    deps: {
-      cwd: scopedCwd,
-      fetch: makePackageFetch({
-        packageName: "@inquirer/prompts",
-        releases: [scopedRelease],
-        releasePayloads: { "scoped-release": scopedPayload },
-      }),
-      selectRelease: async releases => releases[0],
-      log: () => {},
-    },
+  await runAddWithDeps("@inquirer/prompts", undefined, {
+    cwd: scopedCwd,
+    fetch: makePackageFetch({
+      packageName: "@inquirer/prompts",
+      releases: [scopedRelease],
+      releasePayloads: { "scoped-release": scopedPayload },
+    }),
+    selectRelease: async releases => releases[0],
+    log: () => {},
   })
 
   const installed = await readFile(
@@ -205,17 +199,15 @@ try {
     ],
   }
 
-  await runAdd("is-even", undefined, {
-    deps: {
-      cwd: multiFileCwd,
-      fetch: makePackageFetch({
-        packageName: "is-even",
-        releases: [multiRelease],
-        releasePayloads: { "multi-release": multiPayload },
-      }),
-      selectRelease: async releases => releases[0],
-      log: () => {},
-    },
+  await runAddWithDeps("is-even", undefined, {
+    cwd: multiFileCwd,
+    fetch: makePackageFetch({
+      packageName: "is-even",
+      releases: [multiRelease],
+      releasePayloads: { "multi-release": multiPayload },
+    }),
+    selectRelease: async releases => releases[0],
+    log: () => {},
   })
 
   const foo = await readFile(
@@ -246,17 +238,15 @@ try {
   let invalidMessage = null
 
   try {
-    await runAdd("is-even", "vendor/bindings", {
-      deps: {
-        cwd: invalidFileCwd,
-        fetch: makePackageFetch({
-          packageName: "is-even",
-          releases: [invalidRelease],
-          releasePayloads: { "invalid-release": invalidPayload },
-        }),
-        selectRelease: async releases => releases[0],
-        log: () => {},
-      },
+    await runAddWithDeps("is-even", "vendor/bindings", {
+      cwd: invalidFileCwd,
+      fetch: makePackageFetch({
+        packageName: "is-even",
+        releases: [invalidRelease],
+        releasePayloads: { "invalid-release": invalidPayload },
+      }),
+      selectRelease: async releases => releases[0],
+      log: () => {},
     })
   } catch (error) {
     invalidMessage = error.message
@@ -283,17 +273,15 @@ try {
   let traversalMessage = null
 
   try {
-    await runAdd("is-even", "vendor/bindings", {
-      deps: {
-        cwd: traversalCwd,
-        fetch: makePackageFetch({
-          packageName: "is-even",
-          releases: [traversalRelease],
-          releasePayloads: { "traversal-release": traversalPayload },
-        }),
-        selectRelease: async releases => releases[0],
-        log: () => {},
-      },
+    await runAddWithDeps("is-even", "vendor/bindings", {
+      cwd: traversalCwd,
+      fetch: makePackageFetch({
+        packageName: "is-even",
+        releases: [traversalRelease],
+        releasePayloads: { "traversal-release": traversalPayload },
+      }),
+      selectRelease: async releases => releases[0],
+      log: () => {},
     })
   } catch (error) {
     traversalMessage = error.message
@@ -312,14 +300,12 @@ try {
   let missingPackageMessage = null
 
   try {
-    await runAdd(undefined, undefined, {
-      deps: {
-        cwd: missingPackageCwd,
-        stdin: { isTTY: false },
-        stdout: { isTTY: false },
-        fetch: async () => {
-          throw new Error("missing package should fail before fetching")
-        },
+    await runAddWithDeps(undefined, undefined, {
+      cwd: missingPackageCwd,
+      stdin: { isTTY: false },
+      stdout: { isTTY: false },
+      fetch: async () => {
+        throw new Error("missing package should fail before fetching")
       },
     })
   } catch (error) {
@@ -341,14 +327,12 @@ try {
   await mkdir(targetDir, { recursive: true })
   await writeFile(targetFile, "let existing = true\n")
 
-  await runAdd("is-even", undefined, {
-    deps: {
-      cwd: collisionCwd,
-      fetch: makeFetch([]),
-      selectRelease: async releases => releases[0],
-      confirmOverwrite: async () => false,
-      log: () => {},
-    },
+  await runAddWithDeps("is-even", undefined, {
+    cwd: collisionCwd,
+    fetch: makeFetch([]),
+    selectRelease: async releases => releases[0],
+    confirmOverwrite: async () => false,
+    log: () => {},
   })
 
   const unchanged = await readFile(targetFile, "utf8")

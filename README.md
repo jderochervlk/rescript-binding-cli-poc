@@ -4,11 +4,10 @@ This repository is implemented in **ReScript v12** with a Node CLI bundle and a 
 
 ## Layout
 
-- `src/Worker.res`: registry routing and publish validation helpers.
-- `js/Worker.mjs`: Cloudflare Worker runtime entrypoint.
-- `js/Command.mjs`: Commander-powered CLI entrypoint for `add` and `publish`.
-- `js/RegistryAdd.mjs`: Node/TTY/filesystem orchestration for installing bindings.
-- `js/PublishOAuth.mjs`: Node/browser/OAuth orchestration for publishing bindings.
+- `src/Command.res`: Commander-powered CLI entrypoint for `add` and `publish`.
+- `src/Worker.res`: Cloudflare Worker runtime entrypoint, registry routing, and publish validation.
+- `src/bindings/RegistryAdd.res`: Node/TTY/filesystem orchestration for installing bindings.
+- `src/bindings/PublishOAuth.res`: Node/browser/OAuth orchestration for publishing bindings.
 - `src/add/*.res`: ReScript-owned add-flow rules for package names, install paths, and release table rows.
 - `src/publish/*.res`: ReScript-owned publish-flow rules for token strategy and binding source discovery.
 - `src/core/PackageJson.res`: shared dependency lookup rules for parsed `package.json` contents.
