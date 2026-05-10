@@ -2,6 +2,9 @@ name = "rescript-binding-cli-poc"
 main = "packages/cli/src/Worker.res.mjs"
 compatibility_date = "2026-04-19"
 
+[build]
+command = "pnpm --filter @jvlk/rescript-bindings build:res"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "rescript-binding-registry"
