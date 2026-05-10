@@ -1,4 +1,5 @@
 @module("node:child_process") external execSync: (string, 'options) => string = "execSync"
+@module("node:fs") external readFileSync: (string, string) => string = "readFileSync"
 
 @send external indexOf: (string, string) => int = "indexOf"
 @send external sliceFrom: (string, int) => string = "slice"
@@ -33,6 +34,7 @@ type fileRow = {
   relative_path: string,
   bytes: int,
 }
+type fileContentRow = {content: string}
 
 let firstResult = response => {
   let result: queryResponse<'row> = response[0]->Belt.Option.getExn
@@ -42,7 +44,11 @@ let firstResult = response => {
 let () = {
   let releaseId = "rel-" ++ (Date.now()->Float.toString)
   let createdAt = Date.make()->Date.toISOString
-  let bindingSource = "@module(\"is-even\")\nexternal isEven: int => bool = \"default\"\n"
+  let bindingSource = readFileSync("test/fixtures/isEven.res", "utf8")
+  TestSupport.assertTrue(
+    bindingSource->TestSupport.includes("@module(\"is-even\")"),
+    "fixture binds to external is-even npm package",
+  )
   let escapedContent = bindingSource->TestSupport.replaceAll("'", "''")
 
   run("pnpm exec wrangler d1 execute " ++ dbName ++ " --local --file schema.sql")->ignore
@@ -125,6 +131,18 @@ WHERE release_id = '` ++ releaseId ++ `';
   let fileRow = firstResult(fileCheck)
   TestSupport.assertStringEquals(fileRow.relative_path, "isEven.res", "binding file inserted")
   TestSupport.assertTrue(fileRow.bytes == bindingSource->String.length, "binding file byte count persisted")
+
+  let storedFile: array<queryResponse<fileContentRow>> = execLocalSql(`
+SELECT content
+FROM binding_files
+WHERE release_id = '` ++ releaseId ++ `' AND relative_path = 'isEven.res';
+`)
+  let storedContent = firstResult(storedFile)
+  TestSupport.assertStringEquals(
+    storedContent.content,
+    bindingSource,
+    "stored file content matches fixture",
+  )
 
   Console.log("D1_test.res passed")
 }
