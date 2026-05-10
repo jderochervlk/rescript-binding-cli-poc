@@ -84,6 +84,24 @@ const duplicatePublishDb = {
   },
 }
 
+let scopedPackageParam = null
+const scopedPackageDb = {
+  prepare: sql => ({
+    bind: (...params) => ({
+      all: async () => {
+        if (sql.includes("FROM binding_releases")) {
+          scopedPackageParam = params[0]
+        }
+
+        return { results: [] }
+      },
+      first: async () => null,
+      run: async () => ({ success: true }),
+    }),
+  }),
+  batch: async () => [],
+}
+
 const oldProtectedPath = await worker.fetch(new Request(`${publicApiBaseUrl}/v1/me`), {}, {})
 assert(oldProtectedPath.status === 404, "publish identity route is not exposed under public api")
 
@@ -104,6 +122,18 @@ const publicListMissingDb = await worker.fetch(
 )
 
 assert(publicListMissingDb.status === 500, "public package release list requires D1 binding")
+
+const scopedPackageList = await worker.fetch(
+  new Request(`${publicApiBaseUrl}/v1/packages/%40inquirer%2Fprompts/releases`),
+  { DB: scopedPackageDb },
+  {}
+)
+
+assert(scopedPackageList.status === 200, "public package release list accepts encoded scoped packages")
+assert(
+  scopedPackageParam === "@inquirer/prompts",
+  "public package release list decodes scoped package names before querying"
+)
 
 const publicListBody = await publicList.json()
 assert(publicListBody.releases?.length === 1, "public package release list returns releases")

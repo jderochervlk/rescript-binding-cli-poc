@@ -270,6 +270,43 @@ try {
   await rm(invalidFileCwd, { recursive: true, force: true })
 }
 
+const traversalCwd = await makeProject()
+try {
+  const traversalRelease = {
+    ...releaseSummary,
+    id: "traversal-release",
+  }
+  const traversalPayload = {
+    ...traversalRelease,
+    files: [{ relativePath: "../evil.res", content: "let evil = true\n" }],
+  }
+  let traversalMessage = null
+
+  try {
+    await runAdd("is-even", "vendor/bindings", {
+      deps: {
+        cwd: traversalCwd,
+        fetch: makePackageFetch({
+          packageName: "is-even",
+          releases: [traversalRelease],
+          releasePayloads: { "traversal-release": traversalPayload },
+        }),
+        selectRelease: async releases => releases[0],
+        log: () => {},
+      },
+    })
+  } catch (error) {
+    traversalMessage = error.message
+  }
+
+  assert(
+    traversalMessage?.includes("escapes install folder"),
+    "add rejects release files that escape the install folder"
+  )
+} finally {
+  await rm(traversalCwd, { recursive: true, force: true })
+}
+
 const missingPackageCwd = await makeProject()
 try {
   let missingPackageMessage = null
