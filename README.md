@@ -6,8 +6,12 @@ This repository is implemented in **ReScript v12** with a Node CLI bundle and a 
 
 - `src/Worker.res`: registry API surface + request handling for public/protected routes.
 - `src/Command.mjs`: Commander-powered CLI entrypoint for `add` and `publish`.
-- `src/js/RegistryAdd.mjs`: registry install flow, package/release selectors, install-path validation.
-- `src/js/PublishOAuth.mjs`: Cloudflare Access OAuth and publish flow.
+- `src/js/RegistryAdd.mjs`: Node/TTY/filesystem orchestration for installing bindings.
+- `src/js/PublishOAuth.mjs`: Node/browser/OAuth orchestration for publishing bindings.
+- `src/add/*.res`: ReScript-owned add-flow rules for package names, install paths, and release table rows.
+- `src/publish/*.res`: ReScript-owned publish-flow rules for token strategy and binding source discovery.
+- `src/core/PackageJson.res`: shared dependency lookup rules for parsed `package.json` contents.
+- `src/core/RegistryConfig.res`: shared hard-coded registry endpoints for the PoC.
 - `src/core/Validation.res`: upload/path/size validation rules and slug helpers.
 - `src/core/RegistryTypes.res`: shared domain types for releases, files, and publish payloads.
 - `src/bindings/*`: runtime externals (Node process/path/fs and fetch).

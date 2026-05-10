@@ -7,12 +7,16 @@ import { homedir } from "node:os"
 import path from "node:path"
 import { createInterface } from "node:readline/promises"
 import { search } from "@inquirer/prompts"
+import * as PackageJson from "../core/PackageJson.res.mjs"
+import * as RegistryConfig from "../core/RegistryConfig.res.mjs"
+import * as PublishSource from "../publish/PublishSource.res.mjs"
+import * as PublishTokenStrategy from "../publish/PublishTokenStrategy.res.mjs"
 
 const joinPath = path.posix.join
 const dirnamePath = path.posix.dirname
 const normalizeBasePath = homeDir => homeDir.replaceAll("\\", "/")
-export const publishBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api/publish"
-const oauthResource = `${publishBaseUrl}/v1/me`
+export const publishBaseUrl = RegistryConfig.publishBaseUrl
+const oauthResource = RegistryConfig.oauthResource
 
 export const cacheFilePathFor = ({
   platform = process.platform,
@@ -51,23 +55,18 @@ export const cacheFilePathFor = ({
 }
 
 export const isAccessTokenUsable = (bundle, now = Date.now()) => {
-  if (!bundle?.accessToken || typeof bundle.expiresAt !== "number") {
-    return false
-  }
-
-  return bundle.expiresAt - now > 60_000
+  return PublishTokenStrategy.isAccessTokenUsable(
+    Boolean(bundle?.accessToken),
+    typeof bundle?.expiresAt === "number" ? bundle.expiresAt : undefined,
+    now
+  )
 }
 
 export const selectAuthStrategy = (bundle, now = Date.now()) => {
-  if (isAccessTokenUsable(bundle, now)) {
-    return "reuse"
-  }
-
-  if (bundle?.refreshToken) {
-    return "refresh"
-  }
-
-  return "interactive"
+  return PublishTokenStrategy.selectName(
+    isAccessTokenUsable(bundle, now),
+    Boolean(bundle?.refreshToken)
+  )
 }
 
 export const codeChallengeFromVerifier = verifier =>
@@ -523,10 +522,7 @@ export const runPublishAuth = async options => {
   return session.identity
 }
 
-const bindingFileExtensions = new Set([".res", ".resi"])
-const ignoredDirectoryNames = new Set(["node_modules", "lib", "dist", "build", "coverage"])
-
-const toPosixPath = value => value.replaceAll("\\", "/")
+const toPosixPath = PublishSource.toPosixPath
 
 const readProjectPackageJson = async cwd => {
   const packageJsonPath = path.join(cwd, "package.json")
@@ -546,40 +542,9 @@ const readProjectPackageJson = async cwd => {
   }
 }
 
-const dependencyVersionFrom = (packageJson, dependencyName) => {
-  const dependencyGroups = [
-    packageJson.peerDependencies,
-    packageJson.dependencies,
-    packageJson.devDependencies,
-  ]
+const dependencyVersionFrom = PackageJson.dependencyVersionFrom
 
-  for (const dependencies of dependencyGroups) {
-    const version = dependencies?.[dependencyName]
-    if (typeof version === "string" && version.trim() !== "") {
-      return version
-    }
-  }
-
-  return undefined
-}
-
-const dependencyNamesFrom = packageJson => {
-  const names = new Set()
-
-  for (const dependencies of [
-    packageJson.peerDependencies,
-    packageJson.dependencies,
-    packageJson.devDependencies,
-  ]) {
-    for (const name of Object.keys(dependencies ?? {})) {
-      if (name !== "rescript") {
-        names.add(name)
-      }
-    }
-  }
-
-  return [...names].sort((a, b) => a.localeCompare(b))
-}
+const dependencyNamesFrom = PackageJson.dependencyNamesFrom
 
 const promptWithDefault = async (readline, label, defaultValue) => {
   const suffix = defaultValue ? ` [${defaultValue}]` : ""
@@ -692,15 +657,11 @@ const pathCompleter = cwd => input => {
   }
 }
 
-const deriveVariantLabel = sourcePath => {
-  const basename = path.basename(sourcePath)
-  const extension = path.extname(basename)
-  return extension ? basename.slice(0, -extension.length) : basename
-}
+const deriveVariantLabel = PublishSource.deriveVariantLabel
 
-const isBindingFilePath = filePath => bindingFileExtensions.has(path.extname(filePath))
+const isBindingFilePath = PublishSource.isBindingFilePath
 
-const shouldSkipDirectory = name => name.startsWith(".") || ignoredDirectoryNames.has(name)
+const shouldSkipDirectory = PublishSource.shouldSkipDirectory
 
 const collectBindingFilesFrom = async ({ sourcePath, cwd }) => {
   const absoluteSourcePath = path.resolve(cwd, sourcePath)

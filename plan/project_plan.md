@@ -455,6 +455,17 @@ This keeps the security boundary narrow:
 - Publish immediately after successful validation for allowlisted contributors.
 - Use Cloudflare Access with GitHub as the identity provider for publishing, and use the CLI OAuth flow rather than `cloudflared`.
 
+## Current Implementation Checkpoint
+
+- CLI commands are top-level `add` and `publish`, backed by the bundled `bin/index.mjs`.
+- Public read endpoints use `/api/v1/...`; protected publish endpoints use `/api/publish/v1/...`.
+- Add-flow domain rules now live in small documented ReScript modules under `src/add`.
+- Publish-flow domain rules now live in small documented ReScript modules under `src/publish`.
+- Parsed package dependency lookup now lives in `src/core/PackageJson.res` and is shared by add and publish.
+- Registry endpoint constants live in `src/core/RegistryConfig.res`.
+- JS files remain for Node runtime interop: Commander, TTY prompts, browser launch, OAuth loopback server, filesystem reads/writes, and HTTP calls.
+- Focused ReScript tests cover the extracted add and publish rules, and the existing JS integration tests cover the orchestration boundary.
+
 ## Rationale
 
 This design optimizes for the smallest system that is still operationally credible:

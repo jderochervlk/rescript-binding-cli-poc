@@ -3,8 +3,14 @@ import path from "node:path"
 import { emitKeypressEvents } from "node:readline"
 import { createInterface } from "node:readline/promises"
 import { search } from "@inquirer/prompts"
+import * as AddInstallTarget from "../add/AddInstallTarget.res.mjs"
+import * as AddModuleFilename from "../add/AddModuleFilename.res.mjs"
+import * as AddPackageName from "../add/AddPackageName.res.mjs"
+import * as AddReleaseTable from "../add/AddReleaseTable.res.mjs"
+import * as PackageJson from "../core/PackageJson.res.mjs"
+import * as RegistryConfig from "../core/RegistryConfig.res.mjs"
 
-export const registryApiBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api"
+export const registryApiBaseUrl = RegistryConfig.registryApiBaseUrl
 
 const readJson = async response => {
   if (response.ok) {
@@ -51,40 +57,9 @@ const readProjectPackageJson = async cwd => {
   }
 }
 
-const dependencyVersionFrom = (packageJson, dependencyName) => {
-  const dependencyGroups = [
-    packageJson.peerDependencies,
-    packageJson.dependencies,
-    packageJson.devDependencies,
-  ]
+const dependencyVersionFrom = PackageJson.dependencyVersionFrom
 
-  for (const dependencies of dependencyGroups) {
-    const version = dependencies?.[dependencyName]
-    if (typeof version === "string" && version.trim() !== "") {
-      return version
-    }
-  }
-
-  return undefined
-}
-
-const dependencyNamesFrom = packageJson => {
-  const names = new Set()
-
-  for (const dependencies of [
-    packageJson.peerDependencies,
-    packageJson.dependencies,
-    packageJson.devDependencies,
-  ]) {
-    for (const name of Object.keys(dependencies ?? {})) {
-      if (name !== "rescript") {
-        names.add(name)
-      }
-    }
-  }
-
-  return [...names].sort((a, b) => a.localeCompare(b))
-}
+const dependencyNamesFrom = PackageJson.dependencyNamesFrom
 
 const askRequired = async ({ stdin, stdout }, question) => {
   const answer = (await askWithReadline({ stdin, stdout }, question)).trim()
@@ -100,25 +75,18 @@ const askWithDefault = async ({ stdin, stdout }, question, defaultValue) => {
   return answer || defaultValue
 }
 
-const moduleFilenameError =
-  "Install filename must be a valid ReScript module filename, like InquirerPrompts.res."
-
-const moduleFilenamePattern = /^([A-Za-z][A-Za-z0-9]*)(\.resi?)$/
-
-const normalizeModuleFilename = filename => {
-  const match = filename.match(moduleFilenamePattern)
-  if (!match) {
-    throw new Error(moduleFilenameError)
-  }
-
-  return `${match[1][0].toUpperCase()}${match[1].slice(1)}${match[2]}`
-}
+const moduleFilenameError = AddModuleFilename.errorMessage
 
 const normalizeInstallFilePath = filePath => {
-  const dirname = path.dirname(filePath)
-  const filename = normalizeModuleFilename(path.basename(filePath))
+  try {
+    return AddModuleFilename.normalizePath(filePath)
+  } catch (error) {
+    if (error?.RE_EXN_ID === AddModuleFilename.InvalidFilename) {
+      throw new Error(moduleFilenameError)
+    }
 
-  return dirname === "." ? filename : path.join(dirname, filename)
+    throw error
+  }
 }
 
 const selectPackageName = async ({ packageNames, stdin, stdout }) => {
@@ -155,23 +123,18 @@ const selectPackageName = async ({ packageNames, stdin, stdout }) => {
 }
 
 const releaseRow = release => {
-  const packageMark =
-    release.isPackageCompatible === true
-      ? "matches installed"
-      : release.isPackageCompatible === false
-        ? "does not match installed"
-        : "installed version unknown"
-  const rescriptMark =
-    release.isRescriptCompatible === true
-      ? "matches project"
-      : release.isRescriptCompatible === false
-        ? "does not match project"
-        : "project version unknown"
+  const row = AddReleaseTable.row({
+    author: release.publisherLogin,
+    packageRange: release.peerPackageRange,
+    rescriptRange: release.rescriptRange,
+    isPackageCompatible: release.isPackageCompatible,
+    isRescriptCompatible: release.isRescriptCompatible,
+  })
 
   return {
-    author: release.publisherLogin,
-    package: `${release.peerPackageRange} - ${packageMark}`,
-    rescript: `${release.rescriptRange} - ${rescriptMark}`,
+    author: row.author,
+    package: row.packageText,
+    rescript: row.rescriptText,
   }
 }
 
@@ -295,17 +258,10 @@ const defaultConfirmOverwrite = async (files, { stdin = process.stdin, stdout = 
   return answer === "y" || answer === "yes"
 }
 
-const bindingNameFromPackageName = packageName => {
-  const parts = packageName.match(/[a-zA-Z0-9]+/g) ?? []
-  const name = parts
-    .map(part => `${part[0].toUpperCase()}${part.slice(1)}`)
-    .join("")
-
-  return /^[A-Z]/.test(name) ? name : `Binding${name}`
-}
+const bindingNameFromPackageName = packageName => AddPackageName.toModuleName(packageName)
 
 const defaultInstallPathFor = ({ packageName, extension }) =>
-  path.join("src", "bindings", `${bindingNameFromPackageName(packageName)}${extension}`)
+  AddInstallTarget.defaultSingleFilePath(packageName, extension)
 
 const askInstallFilePath = async ({ stdin, stdout, defaultValue }) => {
   if (!stdin.isTTY || !stdout.isTTY) {
@@ -323,7 +279,7 @@ const askInstallFilePath = async ({ stdin, stdout, defaultValue }) => {
 }
 
 export const defaultInstallFolderFor = ({ cwd, packageName }) =>
-  path.join(cwd, "src", "bindings", bindingNameFromPackageName(packageName))
+  path.join(cwd, AddInstallTarget.defaultFolder(packageName))
 
 const listPackageReleases = async ({ packageName, packageVersion, rescriptVersion, fetchImpl }) => {
   const url = new URL(`${registryApiBaseUrl}/v1/packages/${encodeURIComponent(packageName)}/releases`)
@@ -367,7 +323,7 @@ const targetPlanFor = async ({ cwd, folder, release, stdin, stdout }) => {
     }
   }
 
-  const root = path.resolve(cwd, "src", "bindings", bindingNameFromPackageName(release.packageName))
+  const root = path.resolve(cwd, AddInstallTarget.defaultFolder(release.packageName))
   return {
     summaryPath: path.relative(cwd, root) || ".",
     targetPathForFile: file => targetPathFor({ root, relativePath: file.relativePath }),
