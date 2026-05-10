@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { emitKeypressEvents } from "node:readline"
 import { createInterface } from "node:readline/promises"
+import { search } from "@inquirer/prompts"
 
 export const registryApiBaseUrl = "https://rescript-binding-registry.josh-401.workers.dev/api"
 
@@ -67,22 +68,117 @@ const dependencyVersionFrom = (packageJson, dependencyName) => {
   return undefined
 }
 
-const releaseLine = release => {
+const dependencyNamesFrom = packageJson => {
+  const names = new Set()
+
+  for (const dependencies of [
+    packageJson.peerDependencies,
+    packageJson.dependencies,
+    packageJson.devDependencies,
+  ]) {
+    for (const name of Object.keys(dependencies ?? {})) {
+      if (name !== "rescript") {
+        names.add(name)
+      }
+    }
+  }
+
+  return [...names].sort((a, b) => a.localeCompare(b))
+}
+
+const askRequired = async ({ stdin, stdout }, question) => {
+  const answer = (await askWithReadline({ stdin, stdout }, question)).trim()
+  if (answer === "") {
+    throw new Error("Package name is required")
+  }
+
+  return answer
+}
+
+const askWithDefault = async ({ stdin, stdout }, question, defaultValue) => {
+  const answer = (await askWithReadline({ stdin, stdout }, `${question} [${defaultValue}]: `)).trim()
+  return answer || defaultValue
+}
+
+const moduleFilenameError =
+  "Install filename must be a valid ReScript module filename, like InquirerPrompts.res."
+
+const moduleFilenamePattern = /^([A-Za-z][A-Za-z0-9]*)(\.resi?)$/
+
+const normalizeModuleFilename = filename => {
+  const match = filename.match(moduleFilenamePattern)
+  if (!match) {
+    throw new Error(moduleFilenameError)
+  }
+
+  return `${match[1][0].toUpperCase()}${match[1].slice(1)}${match[2]}`
+}
+
+const normalizeInstallFilePath = filePath => {
+  const dirname = path.dirname(filePath)
+  const filename = normalizeModuleFilename(path.basename(filePath))
+
+  return dirname === "." ? filename : path.join(dirname, filename)
+}
+
+const selectPackageName = async ({ packageNames, stdin, stdout }) => {
+  if (!stdin.isTTY || !stdout.isTTY) {
+    throw new Error("add requires a package argument when not running in an interactive terminal")
+  }
+
+  if (packageNames.length === 0) {
+    return askRequired({ stdin, stdout }, "Package name: ")
+  }
+
+  return search(
+    {
+      message: "Package name",
+      pageSize: 8,
+      source: async term => {
+        const input = term?.trim() ?? ""
+        const matches = packageNames
+          .filter(packageName => input === "" || packageName.includes(input))
+          .map(packageName => ({ name: packageName, value: packageName }))
+
+        if (input !== "" && !packageNames.includes(input)) {
+          matches.push({
+            name: `Use custom package "${input}"`,
+            value: input,
+          })
+        }
+
+        return matches
+      },
+    },
+    { input: stdin, output: stdout }
+  )
+}
+
+const releaseRow = release => {
   const packageMark =
     release.isPackageCompatible === true
-      ? "package match"
+      ? "matches installed"
       : release.isPackageCompatible === false
-        ? "package mismatch"
-        : "package unknown"
+        ? "does not match installed"
+        : "installed version unknown"
   const rescriptMark =
     release.isRescriptCompatible === true
-      ? "ReScript match"
+      ? "matches project"
       : release.isRescriptCompatible === false
-        ? "ReScript mismatch"
-        : "ReScript unknown"
+        ? "does not match project"
+        : "project version unknown"
 
-  return `${release.variantLabel} by ${release.publisherLogin} (${release.peerPackageRange}, ${release.rescriptRange}; ${packageMark}, ${rescriptMark})`
+  return {
+    author: release.publisherLogin,
+    package: `${release.peerPackageRange} - ${packageMark}`,
+    rescript: `${release.rescriptRange} - ${rescriptMark}`,
+  }
 }
+
+const tableWidth = (rows, key, label) =>
+  Math.max(label.length, ...rows.map(row => row[key].length))
+
+const padCell = (value, width) => value.padEnd(width)
 
 const askWithReadline = async ({ stdin, stdout }, question) => {
   const readline = createInterface({ input: stdin, output: stdout })
@@ -94,9 +190,19 @@ const askWithReadline = async ({ stdin, stdout }, question) => {
 }
 
 const renderReleaseOptions = ({ releases, selectedIndex, stdout }) => {
-  releases.forEach((release, index) => {
+  const rows = releases.map(releaseRow)
+  const authorWidth = tableWidth(rows, "author", "Author")
+  const packageWidth = tableWidth(rows, "package", "Package")
+  const rescriptWidth = tableWidth(rows, "rescript", "ReScript")
+
+  stdout.write(
+    `  ${padCell("Author", authorWidth)}  ${padCell("Package", packageWidth)}  ReScript\n`
+  )
+
+  rows.forEach((row, index) => {
     const prefix = index === selectedIndex ? "\x1b[36m›\x1b[0m" : " "
-    const label = index === selectedIndex ? `\x1b[1m${releaseLine(release)}\x1b[0m` : releaseLine(release)
+    const line = `${padCell(row.author, authorWidth)}  ${padCell(row.package, packageWidth)}  ${padCell(row.rescript, rescriptWidth)}`
+    const label = index === selectedIndex ? `\x1b[1m${line}\x1b[0m` : line
     stdout.write(`${prefix} ${label}\n`)
   })
 }
@@ -126,7 +232,7 @@ const selectReleaseWithKeys = (releases, { stdin, stdout }) =>
     }
 
     const rerender = () => {
-      stdout.write(`\x1b[${releases.length}A\x1b[0J`)
+      stdout.write(`\x1b[${releases.length + 1}A\x1b[0J`)
       renderReleaseOptions({ releases, selectedIndex, stdout })
     }
 
@@ -167,7 +273,7 @@ const selectReleaseWithKeys = (releases, { stdin, stdout }) =>
 
 const defaultSelectRelease = async (releases, { stdin = process.stdin, stdout = process.stdout, log = console.log } = {}) => {
   if (!stdin.isTTY || !stdout.isTTY) {
-    throw new Error("binding add requires an interactive terminal when multiple releases are available")
+    throw new Error("add requires an interactive terminal when multiple releases are available")
   }
 
   log("Available binding releases:")
@@ -177,7 +283,7 @@ const defaultSelectRelease = async (releases, { stdin = process.stdin, stdout = 
 
 const defaultConfirmOverwrite = async (files, { stdin = process.stdin, stdout = process.stdout, log = console.log } = {}) => {
   if (!stdin.isTTY || !stdout.isTTY) {
-    throw new Error("binding add requires an interactive terminal before overwriting files")
+    throw new Error("add requires an interactive terminal before overwriting files")
   }
 
   log("The following files already exist:")
@@ -189,8 +295,35 @@ const defaultConfirmOverwrite = async (files, { stdin = process.stdin, stdout = 
   return answer === "y" || answer === "yes"
 }
 
-export const defaultInstallFolderFor = ({ cwd, packageName, variantSlug }) =>
-  path.join(cwd, "src", "bindings", packageName, variantSlug)
+const bindingNameFromPackageName = packageName => {
+  const parts = packageName.match(/[a-zA-Z0-9]+/g) ?? []
+  const name = parts
+    .map(part => `${part[0].toUpperCase()}${part.slice(1)}`)
+    .join("")
+
+  return /^[A-Z]/.test(name) ? name : `Binding${name}`
+}
+
+const defaultInstallPathFor = ({ packageName, extension }) =>
+  path.join("src", "bindings", `${bindingNameFromPackageName(packageName)}${extension}`)
+
+const askInstallFilePath = async ({ stdin, stdout, defaultValue }) => {
+  if (!stdin.isTTY || !stdout.isTTY) {
+    return defaultValue
+  }
+
+  while (true) {
+    const value = await askWithDefault({ stdin, stdout }, "Install file", defaultValue)
+    try {
+      return normalizeInstallFilePath(value)
+    } catch {
+      stdout.write(`${moduleFilenameError}\n`)
+    }
+  }
+}
+
+export const defaultInstallFolderFor = ({ cwd, packageName }) =>
+  path.join(cwd, "src", "bindings", bindingNameFromPackageName(packageName))
 
 const listPackageReleases = async ({ packageName, packageVersion, rescriptVersion, fetchImpl }) => {
   const url = new URL(`${registryApiBaseUrl}/v1/packages/${encodeURIComponent(packageName)}/releases`)
@@ -210,22 +343,45 @@ const listPackageReleases = async ({ packageName, packageVersion, rescriptVersio
 const fetchRelease = async ({ releaseId, fetchImpl }) =>
   readJson(await fetchImpl(`${registryApiBaseUrl}/v1/releases/${encodeURIComponent(releaseId)}`))
 
-const targetRootFor = ({ cwd, folder, release }) =>
-  folder
-    ? path.resolve(cwd, folder)
-    : defaultInstallFolderFor({
-        cwd,
-        packageName: release.packageName,
-        variantSlug: release.variantSlug,
-      })
+const targetPlanFor = async ({ cwd, folder, release, stdin, stdout }) => {
+  if (folder) {
+    const root = path.resolve(cwd, folder)
+    return {
+      summaryPath: path.relative(cwd, root) || ".",
+      targetPathForFile: file => targetPathFor({ root, relativePath: file.relativePath }),
+    }
+  }
+
+  const singleFile = release.files.length === 1 ? release.files[0] : null
+
+  if (singleFile) {
+    const defaultFile = defaultInstallPathFor({
+      packageName: release.packageName,
+      extension: path.extname(singleFile.relativePath),
+    })
+    const selectedFile = await askInstallFilePath({ stdin, stdout, defaultValue: defaultFile })
+    const targetPath = path.resolve(cwd, selectedFile)
+    return {
+      summaryPath: path.relative(cwd, targetPath) || ".",
+      targetPathForFile: () => targetPath,
+    }
+  }
+
+  const root = path.resolve(cwd, "src", "bindings", bindingNameFromPackageName(release.packageName))
+  return {
+    summaryPath: path.relative(cwd, root) || ".",
+    targetPathForFile: file => targetPathFor({ root, relativePath: file.relativePath }),
+  }
+}
 
 const targetPathFor = ({ root, relativePath }) => {
   const rootPath = path.resolve(root)
-  const targetPath = path.resolve(rootPath, relativePath)
+  const normalizedRelativePath = normalizeInstallFilePath(relativePath)
+  const targetPath = path.resolve(rootPath, normalizedRelativePath)
   const rootPrefix = rootPath.endsWith(path.sep) ? rootPath : `${rootPath}${path.sep}`
 
   if (targetPath !== rootPath && !targetPath.startsWith(rootPrefix)) {
-    throw new Error(`Release file escapes install folder: ${relativePath}`)
+    throw new Error(`Release file escapes install folder: ${normalizedRelativePath}`)
   }
 
   return targetPath
@@ -265,15 +421,18 @@ export const runAdd = async (packageName, folder, { deps = {} } = {}) => {
   const confirmOverwrite = deps.confirmOverwrite ?? defaultConfirmOverwrite
 
   if (!fetchImpl) {
-    throw new Error("binding add requires a fetch implementation")
+    throw new Error("add requires a fetch implementation")
   }
 
-  if (typeof packageName !== "string" || packageName.trim() === "") {
-    throw new Error("Package name is required")
-  }
-
-  const normalizedPackageName = packageName.trim()
   const packageJson = await readProjectPackageJson(cwd)
+  const normalizedPackageName =
+    typeof packageName === "string" && packageName.trim() !== ""
+      ? packageName.trim()
+      : await selectPackageName({
+          packageNames: dependencyNamesFrom(packageJson),
+          stdin,
+          stdout,
+        })
   const packageVersion = dependencyVersionFrom(packageJson, normalizedPackageName)
   const rescriptVersion = dependencyVersionFrom(packageJson, "rescript")
   const releases = await listPackageReleases({
@@ -290,9 +449,9 @@ export const runAdd = async (packageName, folder, { deps = {} } = {}) => {
 
   const selectedRelease = await selectRelease(releases, { stdin, stdout, log })
   const release = await fetchRelease({ releaseId: selectedRelease.id, fetchImpl })
-  const targetRoot = targetRootFor({ cwd, folder, release })
+  const targetPlan = await targetPlanFor({ cwd, folder, release, stdin, stdout })
   const targetFiles = release.files.map(file => ({
-    targetPath: targetPathFor({ root: targetRoot, relativePath: file.relativePath }),
+    targetPath: targetPlan.targetPathForFile(file),
     content: file.content,
   }))
   const existingFiles = await existingFilesFrom(targetFiles)
@@ -307,7 +466,5 @@ export const runAdd = async (packageName, folder, { deps = {} } = {}) => {
 
   await writeReleaseFiles(targetFiles)
 
-  log(
-    `Installed ${release.packageName}/${release.variantLabel} to ${path.relative(cwd, targetRoot) || "."}`
-  )
+  log(`Installed ${release.packageName} to ${targetPlan.summaryPath}`)
 }

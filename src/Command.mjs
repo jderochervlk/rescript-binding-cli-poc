@@ -22,8 +22,8 @@ export const makeProgram = ({ deps = {}, stdout = process.stdout, stderr = proce
   program
     .command("add")
     .description("Install a published binding into the current project")
-    .argument("<package>", "JavaScript package name to install bindings for")
-    .option("-f, --folder <path>", "install into this folder instead of src/bindings/<package>/<variant>")
+    .argument("[package]", "JavaScript package name to install bindings for")
+    .option("-f, --folder <path>", "install into this folder instead of prompting for one")
     .action(async (packageName, options) => {
       await runAdd(packageName, options.folder, { deps })
     })

@@ -85,7 +85,7 @@ try {
   })
 
   const installed = await readFile(
-    path.join(installCwd, "src", "bindings", "is-even", "iseven", "isEven.res"),
+    path.join(installCwd, "src", "bindings", "IsEven.res"),
     "utf8"
   )
 
@@ -99,7 +99,7 @@ try {
     "add sends detected ReScript version"
   )
   assert(
-    logs.some(message => message.includes("Installed is-even/isEven")),
+    logs.some(message => message.includes("Installed is-even to")),
     "add prints install summary"
   )
 } finally {
@@ -108,8 +108,8 @@ try {
 
 const collisionCwd = await makeProject()
 try {
-  const targetDir = path.join(collisionCwd, "src", "bindings", "is-even", "iseven")
-  const targetFile = path.join(targetDir, "isEven.res")
+  const targetDir = path.join(collisionCwd, "src", "bindings")
+  const targetFile = path.join(targetDir, "IsEven.res")
   await mkdir(targetDir, { recursive: true })
   await writeFile(targetFile, "let existing = true\n")
 
