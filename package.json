@@ -1,6 +1,6 @@
 {
     "name": "@jvlk/rescript-bindings",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "type": "module",
     "scripts": {
         "build": "npm run build:res && npm run build:bin",
@@ -13,9 +13,7 @@
         "rescript": "^12.0.0",
         "rolldown": "^1.0.0"
     },
-    "bin": {
-        "rescript-bindings": "./bin/index.mjs"
-    },
+    "bin": "./bin/index.mjs",
     "dependencies": {
         "@inquirer/prompts": "^8.4.2",
         "commander": "^14.0.3",
