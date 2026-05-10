@@ -1,5 +1,4 @@
 import { execSync } from "node:child_process"
-import { readFileSync } from "node:fs"
 
 const DB_NAME = "rescript-binding-registry"
 
@@ -30,7 +29,7 @@ const execLocalSql = sql => {
 
 const releaseId = `rel-${Date.now()}`
 const createdAt = new Date().toISOString()
-const bindingSource = readFileSync("test/fixtures/isEven.res", "utf8")
+const bindingSource = '@module("is-even")\nexternal isEven: int => bool = "default"\n'
 const escapedContent = bindingSource.replace(/'/g, "''")
 
 run(`npx wrangler d1 execute ${DB_NAME} --local --file schema.sql`)

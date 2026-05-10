@@ -4,17 +4,18 @@ This repository is implemented in **ReScript v12** with a Node CLI bundle and a 
 
 ## Layout
 
-- `src/Worker.res`: registry API surface + request handling for public/protected routes.
-- `src/Command.mjs`: Commander-powered CLI entrypoint for `add` and `publish`.
-- `src/js/RegistryAdd.mjs`: Node/TTY/filesystem orchestration for installing bindings.
-- `src/js/PublishOAuth.mjs`: Node/browser/OAuth orchestration for publishing bindings.
+- `src/Worker.res`: registry routing and publish validation helpers.
+- `js/Worker.mjs`: Cloudflare Worker runtime entrypoint.
+- `js/Command.mjs`: Commander-powered CLI entrypoint for `add` and `publish`.
+- `js/RegistryAdd.mjs`: Node/TTY/filesystem orchestration for installing bindings.
+- `js/PublishOAuth.mjs`: Node/browser/OAuth orchestration for publishing bindings.
 - `src/add/*.res`: ReScript-owned add-flow rules for package names, install paths, and release table rows.
 - `src/publish/*.res`: ReScript-owned publish-flow rules for token strategy and binding source discovery.
 - `src/core/PackageJson.res`: shared dependency lookup rules for parsed `package.json` contents.
 - `src/core/RegistryConfig.res`: shared hard-coded registry endpoints for the PoC.
 - `src/core/Validation.res`: upload/path/size validation rules and slug helpers.
 - `src/core/RegistryTypes.res`: shared domain types for releases, files, and publish payloads.
-- `src/bindings/*`: runtime externals (Node process/path/fs and fetch).
+- `src/bindings/*`: ReScript externals for runtime boundaries.
 - `schema.sql`: D1 schema for publishers, releases, files, and audit log.
 - `rescript.json`: ReScript project configuration (replaces the legacy `bsconfig.json` format).
 

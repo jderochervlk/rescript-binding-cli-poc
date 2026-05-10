@@ -1,6 +1,6 @@
 import { Command } from "commander"
-import { runAdd } from "./js/RegistryAdd.mjs"
-import { runPublish } from "./js/PublishOAuth.mjs"
+import { runAdd } from "./RegistryAdd.mjs"
+import { runPublish } from "./PublishOAuth.mjs"
 
 const red = value => `\x1b[31m${value}\x1b[0m`
 

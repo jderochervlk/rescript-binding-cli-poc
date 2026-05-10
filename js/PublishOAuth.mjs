@@ -7,10 +7,10 @@ import { homedir } from "node:os"
 import path from "node:path"
 import { createInterface } from "node:readline/promises"
 import { search } from "@inquirer/prompts"
-import * as PackageJson from "../core/PackageJson.res.mjs"
-import * as RegistryConfig from "../core/RegistryConfig.res.mjs"
-import * as PublishSource from "../publish/PublishSource.res.mjs"
-import * as PublishTokenStrategy from "../publish/PublishTokenStrategy.res.mjs"
+import * as PackageJson from "../src/core/PackageJson.res.mjs"
+import * as RegistryConfig from "../src/core/RegistryConfig.res.mjs"
+import * as PublishSource from "../src/publish/PublishSource.res.mjs"
+import * as PublishTokenStrategy from "../src/publish/PublishTokenStrategy.res.mjs"
 
 const joinPath = path.posix.join
 const dirnamePath = path.posix.dirname

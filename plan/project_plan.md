@@ -463,7 +463,7 @@ This keeps the security boundary narrow:
 - Publish-flow domain rules now live in small documented ReScript modules under `src/publish`.
 - Parsed package dependency lookup now lives in `src/core/PackageJson.res` and is shared by add and publish.
 - Registry endpoint constants live in `src/core/RegistryConfig.res`.
-- JS files remain for Node runtime interop: Commander, TTY prompts, browser launch, OAuth loopback server, filesystem reads/writes, and HTTP calls.
+- Runtime JS files remain outside `src/` under `js/` for Node/Worker interop: Commander, TTY prompts, browser launch, OAuth loopback server, filesystem reads/writes, and HTTP calls.
 - Focused ReScript tests cover the extracted add and publish rules, and the existing JS integration tests cover the orchestration boundary.
 
 ## Rationale

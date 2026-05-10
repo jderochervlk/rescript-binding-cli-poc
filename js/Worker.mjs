@@ -1,5 +1,5 @@
-import { isProtectedRoute, routeFrom, validatePublishInput } from "./Worker.res.mjs"
-import * as Validation from "./core/Validation.res.mjs"
+import { isProtectedRoute, routeFrom, validatePublishInput } from "../src/Worker.res.mjs"
+import * as Validation from "../src/core/Validation.res.mjs"
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {

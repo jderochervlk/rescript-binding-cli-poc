@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { registryApiBaseUrl, runAdd } from "../src/js/RegistryAdd.mjs"
+import { registryApiBaseUrl, runAdd } from "../js/RegistryAdd.mjs"
 
 const assert = (condition, label) => {
   if (!condition) {

@@ -3,12 +3,12 @@ import path from "node:path"
 import { emitKeypressEvents } from "node:readline"
 import { createInterface } from "node:readline/promises"
 import { search } from "@inquirer/prompts"
-import * as AddInstallTarget from "../add/AddInstallTarget.res.mjs"
-import * as AddModuleFilename from "../add/AddModuleFilename.res.mjs"
-import * as AddPackageName from "../add/AddPackageName.res.mjs"
-import * as AddReleaseTable from "../add/AddReleaseTable.res.mjs"
-import * as PackageJson from "../core/PackageJson.res.mjs"
-import * as RegistryConfig from "../core/RegistryConfig.res.mjs"
+import * as AddInstallTarget from "../src/add/AddInstallTarget.res.mjs"
+import * as AddModuleFilename from "../src/add/AddModuleFilename.res.mjs"
+import * as AddPackageName from "../src/add/AddPackageName.res.mjs"
+import * as AddReleaseTable from "../src/add/AddReleaseTable.res.mjs"
+import * as PackageJson from "../src/core/PackageJson.res.mjs"
+import * as RegistryConfig from "../src/core/RegistryConfig.res.mjs"
 
 export const registryApiBaseUrl = RegistryConfig.registryApiBaseUrl
 
