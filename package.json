@@ -1,7 +1,6 @@
 {
     "name": "@jvlk/rescript-bindings",
     "version": "0.1.0",
-    "private": true,
     "type": "module",
     "scripts": {
         "build": "npm run build:res && npm run build:bin",
