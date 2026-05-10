@@ -123,6 +123,49 @@ type releasePayloadResponse = {
   files: array<releaseFileResponse>,
 }
 
+type bindingEntryReleaseResponse = {
+  id: string,
+  packageName: string,
+  variantLabel: string,
+  variantSlug: string,
+  peerPackageRange: string,
+  rescriptRange: string,
+  description: option<string>,
+  createdAt: string,
+}
+
+type bindingEntryResponse = {
+  packageName: string,
+  author: string,
+  authorDisplayName: string,
+  libraryVersions: array<string>,
+  rescriptVersions: array<string>,
+  latestCreatedAt: string,
+  releases: array<bindingEntryReleaseResponse>,
+}
+
+type bindingDetailReleaseResponse = {
+  id: string,
+  packageName: string,
+  variantLabel: string,
+  variantSlug: string,
+  peerPackageRange: string,
+  rescriptRange: string,
+  description: option<string>,
+  createdAt: string,
+  files: array<releaseFileResponse>,
+}
+
+type bindingDetailResponse = {
+  packageName: string,
+  author: string,
+  authorDisplayName: string,
+  libraryVersions: array<string>,
+  rescriptVersions: array<string>,
+  latestCreatedAt: string,
+  releases: array<bindingDetailReleaseResponse>,
+}
+
 type fileWithSha = {
   relativePath: string,
   content: string,
@@ -151,7 +194,8 @@ type manifest = {
 @send external requestJson: request => promise<'payload> = "json"
 @return(nullable) @send external headerGet: (headers, string) => option<string> = "get"
 @new external makeResponse: (string, responseInit) => response = "Response"
-@obj external responseInit: (~status: int, ~headers: array<array<string>>, unit) => responseInit = ""
+@obj
+external responseInit: (~status: int, ~headers: array<array<string>>, unit) => responseInit = ""
 @new external makeUrl: string => url = "URL"
 @get external urlPathname: url => string = "pathname"
 @get external urlSearchParams: url => searchParams = "searchParams"
@@ -160,9 +204,21 @@ type manifest = {
 @send external prepare: (db, string) => statement = "prepare"
 @send external bind1: (statement, string) => boundStatement = "bind"
 @send external bind2: (statement, string, string) => boundStatement = "bind"
-@send external bind5Strings: (statement, string, string, string, string, string) => boundStatement = "bind"
+@send external bind3: (statement, string, string, string) => boundStatement = "bind"
+@send
+external bind5Strings: (statement, string, string, string, string, string) => boundStatement =
+  "bind"
 @send external bind5: (statement, string, string, string, string, int) => boundStatement = "bind"
-@send external bind6Strings: (statement, string, string, string, string, string, string) => boundStatement = "bind"
+@send
+external bind6Strings: (
+  statement,
+  string,
+  string,
+  string,
+  string,
+  string,
+  string,
+) => boundStatement = "bind"
 @send
 external bind13: (
   statement,
@@ -181,6 +237,7 @@ external bind13: (
   string,
 ) => boundStatement = "bind"
 @send external all: boundStatement => promise<queryResult<'row>> = "all"
+@send external allStatement: statement => promise<queryResult<'row>> = "all"
 @send external firstRaw: boundStatement => promise<'row> = "first"
 @send external run: boundStatement => promise<'result> = "run"
 @send external batch: (db, array<boundStatement>) => promise<array<'result>> = "batch"
@@ -214,17 +271,15 @@ let computeCompatibility = (
   packageVersion: option<string>,
   rescriptVersion: option<string>,
 ): releaseWithCompatibility => {
-  let isPackageCompatible =
-    switch packageVersion {
-    | None => None
-    | Some(version) => Some(version == release.peerPackageRange)
-    }
+  let isPackageCompatible = switch packageVersion {
+  | None => None
+  | Some(version) => Some(version == release.peerPackageRange)
+  }
 
-  let isRescriptCompatible =
-    switch rescriptVersion {
-    | None => None
-    | Some(version) => Some(version == release.rescriptRange)
-    }
+  let isRescriptCompatible = switch rescriptVersion {
+  | None => None
+  | Some(version) => Some(version == release.rescriptRange)
+  }
 
   let packageScore = switch isPackageCompatible {
   | Some(true) => 2
@@ -243,7 +298,9 @@ let computeCompatibility = (
   }
 }
 
-let sortByCompatibility = (items: array<releaseWithCompatibility>): array<releaseWithCompatibility> => {
+let sortByCompatibility = (items: array<releaseWithCompatibility>): array<
+  releaseWithCompatibility,
+> => {
   let sorted = arraySliceFrom(items, 0)
   sortInPlaceWith(sorted, (a, b) => b.compatibilityRank - a.compatibilityRank)
   sorted
@@ -252,13 +309,29 @@ let sortByCompatibility = (items: array<releaseWithCompatibility>): array<releas
 type route =
   | ListPackageReleases(string)
   | GetRelease(string)
+  | RecentBindings
+  | SearchBindings
+  | GetBindingAuthorDetail(string, string)
   | Me
   | Publish
   | AdminPublishers
   | NotFound
 
 let routeFrom = (method_: string, pathname: string): route => {
-  if method_ == "GET" && startsWith(pathname, "/api/v1/packages/") && endsWith(pathname, "/releases") {
+  if method_ == "GET" && pathname == "/api/v1/bindings/recent" {
+    RecentBindings
+  } else if method_ == "GET" && pathname == "/api/v1/bindings/search" {
+    SearchBindings
+  } else if method_ == "GET" && startsWith(pathname, "/api/v1/bindings/") {
+    let parts = split(pathname, "/")
+    switch (getAt(parts, 4), getAt(parts, 5), getAt(parts, 6)) {
+    | (Some(packageName), Some("authors"), Some(author)) =>
+      GetBindingAuthorDetail(packageName, author)
+    | _ => NotFound
+    }
+  } else if (
+    method_ == "GET" && startsWith(pathname, "/api/v1/packages/") && endsWith(pathname, "/releases")
+  ) {
     let parts = split(pathname, "/")
     switch getAt(parts, 4) {
     | Some(packageName) => ListPackageReleases(packageName)
@@ -284,7 +357,12 @@ let routeFrom = (method_: string, pathname: string): route => {
 let isProtectedRoute = route =>
   switch route {
   | Me | Publish | AdminPublishers => true
-  | ListPackageReleases(_) | GetRelease(_) | NotFound => false
+  | ListPackageReleases(_)
+  | GetRelease(_)
+  | RecentBindings
+  | SearchBindings
+  | GetBindingAuthorDetail(_, _)
+  | NotFound => false
   }
 
 let validatePublishInput = (input: publishInput): array<normalizedFileEntry> => {
@@ -292,7 +370,10 @@ let validatePublishInput = (input: publishInput): array<normalizedFileEntry> => 
     throw(Validation.ValidationError("Missing required publish fields"))
   }
 
-  if !Validation.rangeLooksValid(input.peerPackageRange) || !Validation.rangeLooksValid(input.rescriptRange) {
+  if (
+    !Validation.rangeLooksValid(input.peerPackageRange) ||
+    !Validation.rangeLooksValid(input.rescriptRange)
+  ) {
     throw(Validation.ValidationError("Invalid semver range fields"))
   }
 
@@ -302,14 +383,10 @@ let validatePublishInput = (input: publishInput): array<normalizedFileEntry> => 
 let json = (~status=200, body) =>
   makeResponse(
     stringify(body),
-    responseInit(
-      ~status,
-      ~headers=[["content-type", "application/json; charset=utf-8"]],
-      (),
-    ),
+    responseInit(~status, ~headers=[["content-type", "application/json; charset=utf-8"]], ()),
   )
 
-let badRequest = message => json(~status=400, { "error": message })
+let badRequest = message => json(~status=400, {"error": message})
 
 let decodeBase64Url = value => {
   let normalized = value->replaceAll("-", "+")->replaceAll("_", "/")
@@ -335,10 +412,10 @@ let currentIdentity = request => {
   | Some(assertion) =>
     try {
       let payload: accessJwtPayload = decodeJwtPayload(assertion)
-    switch payload.email {
-    | Some(email) =>
-      let _ = email
-      let identity: accessIdentity = %raw(`({
+      switch payload.email {
+      | Some(email) =>
+        let _ = email
+        let identity: accessIdentity = %raw(`({
           githubLogin: null,
           displayName: null,
           email,
@@ -403,7 +480,9 @@ let normalizePublishPayload = (payload: publishPayload): publishInput => {
 }
 
 let sha256Hex = async value => {
-  let bytes = makeUint8Array(await digest(globalCrypto->subtle, "SHA-256", makeTextEncoder()->encode(value)))
+  let bytes = makeUint8Array(
+    await digest(globalCrypto->subtle, "SHA-256", makeTextEncoder()->encode(value)),
+  )
   let hex = "0123456789abcdef"
   let output = ref("")
 
@@ -456,19 +535,19 @@ let releaseFromRow = (row: releaseRow): releaseResponse => {
 
 let releaseWithCompatibility = (~row: releaseRow, ~packageVersion, ~rescriptVersion) => {
   let release = releaseFromRow(row)
-  let isPackageCompatible = packageVersion->Belt.Option.map(version => version == release.peerPackageRange)
-  let isRescriptCompatible = rescriptVersion->Belt.Option.map(version => version == release.rescriptRange)
+  let isPackageCompatible =
+    packageVersion->Belt.Option.map(version => version == release.peerPackageRange)
+  let isRescriptCompatible =
+    rescriptVersion->Belt.Option.map(version => version == release.rescriptRange)
   let compatibilityRank =
-    (switch isPackageCompatible {
+    switch isPackageCompatible {
     | Some(true) => 2
     | _ => 0
-    }) +
-    (
-      switch isRescriptCompatible {
-      | Some(true) => 1
-      | _ => 0
-      }
-    )
+    } +
+    switch isRescriptCompatible {
+    | Some(true) => 1
+    | _ => 0
+    }
 
   {
     id: release.id,
@@ -486,6 +565,75 @@ let releaseWithCompatibility = (~row: releaseRow, ~packageVersion, ~rescriptVers
     compatibilityRank,
   }
 }
+
+let releaseSummaryFrom = (row: releaseRow): bindingEntryReleaseResponse => {
+  id: row.id,
+  packageName: row.package_name,
+  variantLabel: row.variant_label,
+  variantSlug: row.variant_slug,
+  peerPackageRange: row.peer_package_range,
+  rescriptRange: row.rescript_range,
+  description: row.description,
+  createdAt: row.created_at,
+}
+
+let pushDistinct = (items: array<string>, value: string) => {
+  if !(items->Array.some(item => item == value)) {
+    items->Array.push(value)->ignore
+  }
+}
+
+let displayNameFromRow = row =>
+  row.publisher_display_name->Belt.Option.getWithDefault(row.publisher_login)
+
+let findEntryIndex = (entries: array<bindingEntryResponse>, row: releaseRow) => {
+  let found = ref(-1)
+  for index in 0 to entries->Array.length - 1 {
+    switch entries[index] {
+    | Some(entry) if entry.packageName == row.package_name && entry.author == row.publisher_login =>
+      found := index
+    | _ => ()
+    }
+  }
+  found.contents
+}
+
+let groupReleaseRows = (rows: array<releaseRow>): array<bindingEntryResponse> => {
+  let entries: array<bindingEntryResponse> = []
+
+  rows->Array.forEach(row => {
+    let index = findEntryIndex(entries, row)
+    if index >= 0 {
+      switch entries[index] {
+      | Some(entry) =>
+        pushDistinct(entry.libraryVersions, row.peer_package_range)
+        pushDistinct(entry.rescriptVersions, row.rescript_range)
+        entry.releases->Array.push(releaseSummaryFrom(row))->ignore
+      | None => ()
+      }
+    } else {
+      entries
+      ->Array.push({
+        packageName: row.package_name,
+        author: row.publisher_login,
+        authorDisplayName: displayNameFromRow(row),
+        libraryVersions: [row.peer_package_range],
+        rescriptVersions: [row.rescript_range],
+        latestCreatedAt: row.created_at,
+        releases: [releaseSummaryFrom(row)],
+      })
+      ->ignore
+    }
+  })
+
+  entries
+}
+
+let escapeLikePattern = value =>
+  value
+  ->replaceAll("\\", "\\\\")
+  ->replaceAll("%", "\\%")
+  ->replaceAll("_", "\\_")
 
 let requireDb = env =>
   switch env->envDb {
@@ -521,8 +669,9 @@ let handleListPackageReleases = async (~env, ~packageName, ~url) =>
       ->all
 
       let releases =
-        result.results
-        ->Array.map(row => releaseWithCompatibility(~row, ~packageVersion, ~rescriptVersion))
+        result.results->Array.map(row =>
+          releaseWithCompatibility(~row, ~packageVersion, ~rescriptVersion)
+        )
       releases->sortInPlaceWith((left, right) => {
         if right.compatibilityRank != left.compatibilityRank {
           right.compatibilityRank - left.compatibilityRank
@@ -601,6 +750,169 @@ let handleGetRelease = async (~env, ~releaseId) =>
     }
   }
 
+let handleRecentBindings = async (~env) =>
+  switch requireDb(env) {
+  | Error(response) => response
+  | Ok(db) =>
+    let result: queryResult<releaseRow> = await db
+    ->prepare(`SELECT
+      id,
+      package_name,
+      variant_label,
+      variant_slug,
+      publisher_login,
+      publisher_display_name,
+      peer_package_range,
+      rescript_range,
+      description,
+      created_at
+    FROM binding_releases
+    WHERE status = 'published'
+    ORDER BY created_at DESC
+    LIMIT 200`)
+    ->allStatement
+
+    json({"entries": groupReleaseRows(result.results)})
+  }
+
+let handleSearchBindings = async (~env, ~url) =>
+  switch requireDb(env) {
+  | Error(response) => response
+  | Ok(db) =>
+    let query = url->urlSearchParams->searchParamGet("q")->Belt.Option.getWithDefault("")->trim
+    if query == "" {
+      json({"entries": []})
+    } else {
+      let pattern = "%" ++ escapeLikePattern(query) ++ "%"
+      let prefixPattern = escapeLikePattern(query) ++ "%"
+      let result: queryResult<releaseRow> = await db
+      ->prepare(`SELECT
+        id,
+        package_name,
+        variant_label,
+        variant_slug,
+        publisher_login,
+        publisher_display_name,
+        peer_package_range,
+        rescript_range,
+        description,
+        created_at
+      FROM binding_releases
+      WHERE status = 'published'
+        AND package_name LIKE ? ESCAPE '\\'
+      ORDER BY
+        CASE
+          WHEN package_name = ? THEN 0
+          WHEN package_name LIKE ? ESCAPE '\\' THEN 1
+          ELSE 2
+        END,
+        created_at DESC
+      LIMIT 200`)
+      ->bind3(pattern, query, prefixPattern)
+      ->all
+
+      json({"entries": groupReleaseRows(result.results)})
+    }
+  }
+
+let detailReleaseFrom = (
+  ~row: releaseRow,
+  ~files: array<releaseFileResponse>,
+): bindingDetailReleaseResponse => {
+  id: row.id,
+  packageName: row.package_name,
+  variantLabel: row.variant_label,
+  variantSlug: row.variant_slug,
+  peerPackageRange: row.peer_package_range,
+  rescriptRange: row.rescript_range,
+  description: row.description,
+  createdAt: row.created_at,
+  files,
+}
+
+let handleGetBindingAuthorDetail = async (~env, ~packageName, ~author) =>
+  switch requireDb(env) {
+  | Error(response) => response
+  | Ok(db) =>
+    try {
+      let decodedPackageName = decodePathValue(packageName)
+      let decodedAuthor = decodePathValue(author)
+      let releaseResult: queryResult<releaseRow> = await db
+      ->prepare(`SELECT
+        id,
+        package_name,
+        variant_label,
+        variant_slug,
+        publisher_login,
+        publisher_display_name,
+        peer_package_range,
+        rescript_range,
+        description,
+        created_at
+      FROM binding_releases
+      WHERE package_name = ?
+        AND publisher_login = ?
+        AND status = 'published'
+      ORDER BY created_at DESC`)
+      ->bind2(decodedPackageName, decodedAuthor)
+      ->all
+
+      if releaseResult.results->Array.length == 0 {
+        json(~status=404, {"error": "Binding author detail not found"})
+      } else {
+        let detailReleases: array<bindingDetailReleaseResponse> = []
+
+        for index in 0 to releaseResult.results->Array.length - 1 {
+          switch releaseResult.results[index] {
+          | Some(row) =>
+            let fileResult: queryResult<fileRow> = await db
+            ->prepare(`SELECT
+              relative_path,
+              content,
+              sha256,
+              bytes
+            FROM binding_files
+            WHERE release_id = ?
+            ORDER BY relative_path ASC`)
+            ->bind1(row.id)
+            ->all
+
+            detailReleases
+            ->Array.push(
+              detailReleaseFrom(
+                ~row,
+                ~files=fileResult.results->Array.map((file): releaseFileResponse => {
+                  relativePath: file.relative_path,
+                  content: file.content,
+                  sha256: file.sha256,
+                  bytes: file.bytes,
+                }),
+              ),
+            )
+            ->ignore
+          | None => ()
+          }
+        }
+
+        let firstRow = releaseResult.results[0]->Belt.Option.getExn
+        let summaryGroup = groupReleaseRows(releaseResult.results)[0]->Belt.Option.getExn
+        let body: bindingDetailResponse = {
+          packageName: firstRow.package_name,
+          author: firstRow.publisher_login,
+          authorDisplayName: displayNameFromRow(firstRow),
+          libraryVersions: summaryGroup.libraryVersions,
+          rescriptVersions: summaryGroup.rescriptVersions,
+          latestCreatedAt: summaryGroup.latestCreatedAt,
+          releases: detailReleases,
+        }
+
+        json(body)
+      }
+    } catch {
+    | Failure(message) => badRequest(message)
+    }
+  }
+
 let filesWithShaFrom = async (files: array<normalizedFileEntry>) => {
   let filesWithSha: array<fileWithSha> = []
 
@@ -624,18 +936,20 @@ let filesWithShaFrom = async (files: array<normalizedFileEntry>) => {
 let insertRelease = async (~db, ~input: publishInput, ~files, ~identity) => {
   let variantSlug = Validation.safeSlug(input.variantLabel)
   let filesWithSha = await filesWithShaFrom(files)
-  let manifestSha256 = await sha256Hex(stringify({
-    packageName: input.packageName,
-    variantLabel: input.variantLabel,
-    variantSlug,
-    peerPackageRange: input.peerPackageRange,
-    rescriptRange: input.rescriptRange,
-    files: filesWithSha->Array.map(file => {
-      relativePath: file.relativePath,
-      sha256: file.sha256,
-      bytes: file.bytes,
+  let manifestSha256 = await sha256Hex(
+    stringify({
+      packageName: input.packageName,
+      variantLabel: input.variantLabel,
+      variantSlug,
+      peerPackageRange: input.peerPackageRange,
+      rescriptRange: input.rescriptRange,
+      files: filesWithSha->Array.map(file => {
+        relativePath: file.relativePath,
+        sha256: file.sha256,
+        bytes: file.bytes,
+      }),
     }),
-  }))
+  )
   let existing: option<idRow> = await db
   ->prepare(`SELECT id
        FROM binding_releases
@@ -644,7 +958,13 @@ let insertRelease = async (~db, ~input: publishInput, ~files, ~identity) => {
          AND peer_package_range = ?
          AND rescript_range = ?
          AND manifest_sha256 = ?`)
-  ->bind5Strings(input.packageName, variantSlug, input.peerPackageRange, input.rescriptRange, manifestSha256)
+  ->bind5Strings(
+    input.packageName,
+    variantSlug,
+    input.peerPackageRange,
+    input.rescriptRange,
+    manifestSha256,
+  )
   ->first
 
   switch existing {
@@ -664,8 +984,10 @@ let insertRelease = async (~db, ~input: publishInput, ~files, ~identity) => {
     let publisherDisplayName = publisherDisplayNameFrom(identity, publisherLogin)
     let statements: array<boundStatement> = []
 
-    statements->Array.push(db
-    ->prepare(`INSERT INTO binding_releases (
+    statements
+    ->Array.push(
+      db
+      ->prepare(`INSERT INTO binding_releases (
           id,
           package_name,
           variant_label,
@@ -680,36 +1002,44 @@ let insertRelease = async (~db, ~input: publishInput, ~files, ~identity) => {
           status,
           created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    ->bind13(
-      releaseId,
-      input.packageName,
-      input.variantLabel,
-      variantSlug,
-      publisherLogin,
-      publisherDisplayName,
-      input.peerPackageRange,
-      input.rescriptRange,
-      input.description,
-      filesWithSha->Array.length,
-      manifestSha256,
-      "published",
-      createdAt,
-    ))->ignore
+      ->bind13(
+        releaseId,
+        input.packageName,
+        input.variantLabel,
+        variantSlug,
+        publisherLogin,
+        publisherDisplayName,
+        input.peerPackageRange,
+        input.rescriptRange,
+        input.description,
+        filesWithSha->Array.length,
+        manifestSha256,
+        "published",
+        createdAt,
+      ),
+    )
+    ->ignore
 
     filesWithSha->Array.forEach(file => {
-      statements->Array.push(db
-      ->prepare(`INSERT INTO binding_files (
+      statements
+      ->Array.push(
+        db
+        ->prepare(`INSERT INTO binding_files (
             release_id,
             relative_path,
             content,
             sha256,
             bytes
           ) VALUES (?, ?, ?, ?, ?)`)
-      ->bind5(releaseId, file.relativePath, file.content, file.sha256, file.bytes))->ignore
+        ->bind5(releaseId, file.relativePath, file.content, file.sha256, file.bytes),
+      )
+      ->ignore
     })
 
-    statements->Array.push(db
-    ->prepare(`INSERT INTO publish_audit_log (
+    statements
+    ->Array.push(
+      db
+      ->prepare(`INSERT INTO publish_audit_log (
           id,
           release_id,
           publisher_login,
@@ -717,14 +1047,20 @@ let insertRelease = async (~db, ~input: publishInput, ~files, ~identity) => {
           created_at,
           metadata_json
         ) VALUES (?, ?, ?, ?, ?, ?)`)
-    ->bind6Strings(
-      auditId,
-      releaseId,
-      publisherLogin,
-      "publish",
-      createdAt,
-      stringify({"packageName": input.packageName, "variantSlug": variantSlug, "fileCount": filesWithSha->Array.length}),
-    ))->ignore
+      ->bind6Strings(
+        auditId,
+        releaseId,
+        publisherLogin,
+        "publish",
+        createdAt,
+        stringify({
+          "packageName": input.packageName,
+          "variantSlug": variantSlug,
+          "fileCount": filesWithSha->Array.length,
+        }),
+      ),
+    )
+    ->ignore
 
     let _ = await db->batch(statements)
 
@@ -765,11 +1101,14 @@ let handlePublish = async (~request, ~env, ~identity) =>
       | Ok((input, files)) =>
         try {
           let result = await insertRelease(~db, ~input, ~files, ~identity)
-          json(~status=if result["duplicate"] {
-            200
-          } else {
-            201
-          }, result)
+          json(
+            ~status=if result["duplicate"] {
+              200
+            } else {
+              201
+            },
+            result,
+          )
         } catch {
         | error =>
           let message = switch error->JsExn.fromException {
@@ -793,6 +1132,10 @@ let fetch = async (request, env, _ctx) => {
     switch route {
     | ListPackageReleases(packageName) => await handleListPackageReleases(~env, ~packageName, ~url)
     | GetRelease(releaseId) => await handleGetRelease(~env, ~releaseId)
+    | RecentBindings => await handleRecentBindings(~env)
+    | SearchBindings => await handleSearchBindings(~env, ~url)
+    | GetBindingAuthorDetail(packageName, author) =>
+      await handleGetBindingAuthorDetail(~env, ~packageName, ~author)
     | Me =>
       switch identity {
       | Some(identity) => json(identity)
