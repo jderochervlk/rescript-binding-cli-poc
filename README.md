@@ -21,12 +21,13 @@ This repository is implemented in **ReScript v12** with a Node CLI bundle and a 
 ## Commands
 
 ```bash
-npm install
-npm run build
-npm test
+corepack enable
+pnpm install
+pnpm build
+pnpm test
 ```
 
-`npm run build` type-checks ReScript and regenerates `bin/index.mjs`. `npm test` runs the build and the current script-based test suite.
+`pnpm build` type-checks ReScript and regenerates `bin/index.mjs`. `pnpm test` runs the build and the current script-based test suite.
 
 ## CLI
 

@@ -2,12 +2,13 @@
     "name": "@jvlk/rescript-bindings",
     "version": "0.2.0",
     "type": "module",
+    "packageManager": "pnpm@10.32.0",
     "scripts": {
-        "build": "npm run build:res && npm run build:bin",
+        "build": "pnpm run build:res && pnpm run build:bin",
         "build:res": "rescript build",
         "build:bin": "rolldown -c && node scripts/MakeBinExecutable.res.mjs",
         "clean": "rescript clean",
-        "test": "npm run build && node test/Validation_test.res.mjs && node test/Cli_test.res.mjs && node test/AddCore_test.res.mjs && node test/PublishCore_test.res.mjs && node test/PackageJson_test.res.mjs && node test/Add_test.res.mjs && node test/PublishOAuth_test.res.mjs && node test/Worker_test.res.mjs && node test/Bin_test.res.mjs && node test/D1_test.res.mjs"
+        "test": "pnpm run build && node test/Validation_test.res.mjs && node test/Cli_test.res.mjs && node test/AddCore_test.res.mjs && node test/PublishCore_test.res.mjs && node test/PackageJson_test.res.mjs && node test/Add_test.res.mjs && node test/PublishOAuth_test.res.mjs && node test/Worker_test.res.mjs && node test/Bin_test.res.mjs && node test/D1_test.res.mjs"
     },
     "devDependencies": {
         "rescript": "^12.0.0",

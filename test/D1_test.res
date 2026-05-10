@@ -19,7 +19,7 @@ let parseWranglerJson = output => {
 
 let execLocalSql = sql => {
   let escapedSql = sql->TestSupport.replaceAll("\"", "\\\"")
-  let output = run("npx wrangler d1 execute " ++ dbName ++ " --local --command \"" ++ escapedSql ++ "\"")
+  let output = run("pnpm exec wrangler d1 execute " ++ dbName ++ " --local --command \"" ++ escapedSql ++ "\"")
   parseWranglerJson(output)
 }
 
@@ -45,7 +45,7 @@ let () = {
   let bindingSource = "@module(\"is-even\")\nexternal isEven: int => bool = \"default\"\n"
   let escapedContent = bindingSource->TestSupport.replaceAll("'", "''")
 
-  run("npx wrangler d1 execute " ++ dbName ++ " --local --file schema.sql")->ignore
+  run("pnpm exec wrangler d1 execute " ++ dbName ++ " --local --file schema.sql")->ignore
 
   execLocalSql(`
 DELETE FROM binding_files;
