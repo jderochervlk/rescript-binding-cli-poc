@@ -1,28 +1,10 @@
 {
-    "name": "@jvlk/rescript-bindings",
-    "version": "0.2.0",
-    "type": "module",
+    "name": "rescript-binding-cli-poc",
+    "private": true,
     "packageManager": "pnpm@10.32.0",
     "scripts": {
-        "build": "pnpm run build:res && pnpm run build:bin",
-        "build:res": "rescript build",
-        "build:bin": "rolldown -c && node scripts/MakeBinExecutable.res.mjs",
-        "clean": "rescript clean",
-        "test": "pnpm run build && node test/Validation_test.res.mjs && node test/Cli_test.res.mjs && node test/AddCore_test.res.mjs && node test/PublishCore_test.res.mjs && node test/PackageJson_test.res.mjs && node test/Add_test.res.mjs && node test/PublishOAuth_test.res.mjs && node test/Worker_test.res.mjs && node test/Bin_test.res.mjs && node test/D1_test.res.mjs"
-    },
-    "devDependencies": {
-        "rescript": "^12.0.0",
-        "rolldown": "^1.0.0"
-    },
-    "bin": "./bin/index.mjs",
-    "dependencies": {
-        "@inquirer/prompts": "^8.4.2",
-        "commander": "^14.0.3",
-        "wrangler": "^4.90.0"
-    },
-    "files": [
-        "README.md",
-        "package.json",
-        "bin"
-    ]
+        "build": "pnpm --filter @jvlk/rescript-bindings build",
+        "clean": "pnpm --filter @jvlk/rescript-bindings clean",
+        "test": "pnpm --filter @jvlk/rescript-bindings test"
+    }
 }
