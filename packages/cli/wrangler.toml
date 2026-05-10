@@ -1,4 +1,4 @@
-name = "rescript-binding-registry"
+name = "rescript-binding-cli-poc"
 main = "src/Worker.res.mjs"
 compatibility_date = "2026-04-19"
 
