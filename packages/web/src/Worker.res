@@ -69,7 +69,7 @@ let listResponse = async (~fetcher, ~env, ~query) => {
         ~title="Search results",
         Pages.listPage(~title="Search results", ~query, ~entries),
       ))
-    | Error(NotFound) => notFound()
+    | Error(NotFound) => badGateway("Registry API search endpoint is unavailable")
     | Error(Upstream(message)) => badGateway(message)
     }
   | _ =>
@@ -79,7 +79,7 @@ let listResponse = async (~fetcher, ~env, ~query) => {
         ~title="ReScript Bindings",
         Pages.listPage(~title="Recently updated", ~entries),
       ))
-    | Error(NotFound) => notFound()
+    | Error(NotFound) => badGateway("Registry API recent endpoint is unavailable")
     | Error(Upstream(message)) => badGateway(message)
     }
   }

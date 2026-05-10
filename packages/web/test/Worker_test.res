@@ -38,6 +38,8 @@ let rejectedFetcher = async _url => {
   throw(Failure("upstream fetch failed"))
 }
 
+let upstreamNotFoundFetcher = async _url => json(~status=404, `{"error":"Not found"}`)
+
 let assertContains = (html, text, label) =>
   TestSupport.assertTrue(html->includes(text), label)
 
@@ -98,6 +100,16 @@ let run = async () => {
   rejectedFetchResponse->assertStatus(502, "rejected fetch maps to 502")
   let rejectedFetchHtml = await rejectedFetchResponse->responseText
   rejectedFetchHtml->assertContains("Registry unavailable", "rejected fetch renders registry unavailable page")
+
+  let recentNotFoundResponse = await Worker.fetchWith(~fetcher=upstreamNotFoundFetcher, makeRequest("https://web.test/"), emptyEnv, ctx)
+  recentNotFoundResponse->assertStatus(502, "recent upstream 404 maps to 502")
+  let recentNotFoundHtml = await recentNotFoundResponse->responseText
+  recentNotFoundHtml->assertContains("Registry unavailable", "recent upstream 404 renders registry unavailable page")
+
+  let searchNotFoundResponse = await Worker.fetchWith(~fetcher=upstreamNotFoundFetcher, makeRequest("https://web.test/?q=missing"), emptyEnv, ctx)
+  searchNotFoundResponse->assertStatus(502, "search upstream 404 maps to 502")
+  let searchNotFoundHtml = await searchNotFoundResponse->responseText
+  searchNotFoundHtml->assertContains("Registry unavailable", "search upstream 404 renders registry unavailable page")
 
   Console.log("Web Worker_test.res passed")
 }
