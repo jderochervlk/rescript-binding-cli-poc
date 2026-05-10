@@ -70,6 +70,22 @@ const makeFetch = requests => async url => {
   throw new Error(`Unexpected URL: ${url}`)
 }
 
+const makePackageFetch =
+  ({ packageName, releases, releasePayloads }) =>
+  async url => {
+    if (url.startsWith(`${registryApiBaseUrl}/v1/packages/${encodeURIComponent(packageName)}/releases?`)) {
+      return jsonResponse({ releases })
+    }
+
+    for (const [releaseId, payload] of Object.entries(releasePayloads)) {
+      if (url === `${registryApiBaseUrl}/v1/releases/${releaseId}`) {
+        return jsonResponse(payload)
+      }
+    }
+
+    throw new Error(`Unexpected URL: ${url}`)
+  }
+
 const installCwd = await makeProject()
 try {
   const requests = []
@@ -104,6 +120,181 @@ try {
   )
 } finally {
   await rm(installCwd, { recursive: true, force: true })
+}
+
+const customFolderCwd = await makeProject()
+try {
+  await runAdd("is-even", "vendor/bindings", {
+    deps: {
+      cwd: customFolderCwd,
+      fetch: makeFetch([]),
+      selectRelease: async releases => releases[0],
+      log: () => {},
+    },
+  })
+
+  const installed = await readFile(
+    path.join(customFolderCwd, "vendor", "bindings", "IsEven.res"),
+    "utf8"
+  )
+
+  assert(installed === releasePayload.files[0].content, "add normalizes release filename inside --folder")
+} finally {
+  await rm(customFolderCwd, { recursive: true, force: true })
+}
+
+const scopedCwd = await mkdtemp(path.join(tmpdir(), "rescript-binding-add-scoped-"))
+try {
+  await writeFile(
+    path.join(scopedCwd, "package.json"),
+    JSON.stringify(
+      {
+        dependencies: { "@inquirer/prompts": "^8.4.2" },
+        devDependencies: { rescript: "^12.0.0" },
+      },
+      null,
+      2
+    )
+  )
+
+  const scopedRelease = {
+    ...releaseSummary,
+    id: "scoped-release",
+    packageName: "@inquirer/prompts",
+    peerPackageRange: "^8.4.2",
+  }
+  const scopedPayload = {
+    ...scopedRelease,
+    files: [{ relativePath: "prompts.res", content: "let prompts = true\n" }],
+  }
+
+  await runAdd("@inquirer/prompts", undefined, {
+    deps: {
+      cwd: scopedCwd,
+      fetch: makePackageFetch({
+        packageName: "@inquirer/prompts",
+        releases: [scopedRelease],
+        releasePayloads: { "scoped-release": scopedPayload },
+      }),
+      selectRelease: async releases => releases[0],
+      log: () => {},
+    },
+  })
+
+  const installed = await readFile(
+    path.join(scopedCwd, "src", "bindings", "InquirerPrompts.res"),
+    "utf8"
+  )
+
+  assert(installed === "let prompts = true\n", "add defaults scoped packages to PascalCase module filename")
+} finally {
+  await rm(scopedCwd, { recursive: true, force: true })
+}
+
+const multiFileCwd = await makeProject()
+try {
+  const multiRelease = {
+    ...releaseSummary,
+    id: "multi-release",
+  }
+  const multiPayload = {
+    ...multiRelease,
+    files: [
+      { relativePath: "nested/fooBinding.res", content: "let foo = true\n" },
+      { relativePath: "types/barBinding.resi", content: "let bar: bool\n" },
+    ],
+  }
+
+  await runAdd("is-even", undefined, {
+    deps: {
+      cwd: multiFileCwd,
+      fetch: makePackageFetch({
+        packageName: "is-even",
+        releases: [multiRelease],
+        releasePayloads: { "multi-release": multiPayload },
+      }),
+      selectRelease: async releases => releases[0],
+      log: () => {},
+    },
+  })
+
+  const foo = await readFile(
+    path.join(multiFileCwd, "src", "bindings", "IsEven", "nested", "FooBinding.res"),
+    "utf8"
+  )
+  const bar = await readFile(
+    path.join(multiFileCwd, "src", "bindings", "IsEven", "types", "BarBinding.resi"),
+    "utf8"
+  )
+
+  assert(foo === "let foo = true\n", "add normalizes nested .res filenames")
+  assert(bar === "let bar: bool\n", "add normalizes nested .resi filenames")
+} finally {
+  await rm(multiFileCwd, { recursive: true, force: true })
+}
+
+const invalidFileCwd = await makeProject()
+try {
+  const invalidRelease = {
+    ...releaseSummary,
+    id: "invalid-release",
+  }
+  const invalidPayload = {
+    ...invalidRelease,
+    files: [{ relativePath: "bad-name.res", content: "let bad = true\n" }],
+  }
+  let invalidMessage = null
+
+  try {
+    await runAdd("is-even", "vendor/bindings", {
+      deps: {
+        cwd: invalidFileCwd,
+        fetch: makePackageFetch({
+          packageName: "is-even",
+          releases: [invalidRelease],
+          releasePayloads: { "invalid-release": invalidPayload },
+        }),
+        selectRelease: async releases => releases[0],
+        log: () => {},
+      },
+    })
+  } catch (error) {
+    invalidMessage = error.message
+  }
+
+  assert(
+    invalidMessage?.includes("valid ReScript module filename"),
+    "add rejects release files that cannot normalize to ReScript module filenames"
+  )
+} finally {
+  await rm(invalidFileCwd, { recursive: true, force: true })
+}
+
+const missingPackageCwd = await makeProject()
+try {
+  let missingPackageMessage = null
+
+  try {
+    await runAdd(undefined, undefined, {
+      deps: {
+        cwd: missingPackageCwd,
+        stdin: { isTTY: false },
+        stdout: { isTTY: false },
+        fetch: async () => {
+          throw new Error("missing package should fail before fetching")
+        },
+      },
+    })
+  } catch (error) {
+    missingPackageMessage = error.message
+  }
+
+  assert(
+    missingPackageMessage?.includes("requires a package argument"),
+    "add without package requires interactivity before fetching"
+  )
+} finally {
+  await rm(missingPackageCwd, { recursive: true, force: true })
 }
 
 const collisionCwd = await makeProject()

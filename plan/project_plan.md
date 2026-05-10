@@ -1,12 +1,12 @@
 # ReScript Binding Registry Design
 
 **Date:** 2026-04-18
-**Status:** Proposed
+**Status:** In progress
 **Owner:** ReScript team
 
 ## Summary
 
-Build a Cloudflare-hosted registry and CLI workflow for publishing and installing ReScript bindings. End users run `rescript binding add <package>` to browse available binding variants for a JavaScript library, inspect publisher and compatibility metadata, and copy the selected binding into their local project. Approved contributors run `rescript binding publish` to upload a local folder of `.res` and `.resi` files through a GitHub-authenticated publish API.
+Build a Cloudflare-hosted registry and CLI workflow for publishing and installing ReScript bindings. End users run `rescript-bindings add [package]` to browse available releases for a JavaScript library, inspect author and compatibility metadata, and copy the selected binding into their local project. Approved contributors run `rescript-bindings publish` to upload local `.res` and `.resi` files through a Cloudflare Access OAuth flow for CLIs.
 
 This design keeps read access fully public, limits publish access to an allowlisted set of GitHub accounts, and stores binding metadata and file contents in Cloudflare D1 for operational simplicity in v1.
 
@@ -18,7 +18,7 @@ This design keeps read access fully public, limits publish access to an allowlis
   - publisher
   - target package version range
   - supported ReScript version range
-- Default installs to `src/bindings`, with a CLI override via `--folder`.
+- Prompt for a ReScript-safe install filename, with a CLI override via `--folder`.
 - Ask for confirmation before overwriting existing files.
 - Use Cloudflare-managed infrastructure for hosting, auth, and persistence.
 - Avoid authentication for public read/install flows.
@@ -30,7 +30,7 @@ This design keeps read access fully public, limits publish access to an allowlis
 - A moderation or approval queue before release.
 - In-place editing of published releases.
 - Automatic update, remove, or sync commands in v1.
-- First-party OAuth implementation inside the ReScript CLI in v1.
+- A custom OAuth provider or first-party identity service.
 
 ## Product Surface
 
@@ -39,48 +39,48 @@ This design keeps read access fully public, limits publish access to an allowlis
 Users install a binding with:
 
 ```bash
-rescript binding add jotai
+rescript-bindings add jotai
 ```
+
+If the package argument is omitted, the CLI offers an interactive package selector populated from the local `package.json`.
 
 The CLI:
 
 1. Reads the local project to detect:
    - the installed package version for `jotai`
    - the local `rescript` version
-2. Fetches all active published variants for `jotai`.
+2. Fetches all active published releases for `jotai`.
 3. Ranks compatible variants first, while still showing all variants.
-4. Renders an interactive picker showing:
-   - variant label
-   - publisher
-   - package range
-   - ReScript range
-   - published date
-5. Installs the chosen release into `src/bindings/<package>/<variant-slug>` by default.
-6. If `--folder <path>` is provided, installs into that folder instead.
-7. If any target file already exists, asks for confirmation before overwriting.
+4. Renders an interactive release table showing:
+   - author
+   - package range and whether it matches the installed package
+   - ReScript range and whether it matches the local project
+5. Prompts for the install file path for single-file releases.
+6. Defaults single-file installs to a ReScript-safe PascalCase filename under `src/bindings`, for example `src/bindings/Jotai.res`.
+7. Allows another directory/path, but validates and normalizes the final filename as a valid ReScript module filename.
+8. If `--folder <path>` is provided, installs into that folder and still normalizes release filenames.
+9. If any target file already exists, asks for confirmation before overwriting.
 
 ### Contributor workflow
 
 Approved contributors publish with:
 
 ```bash
-rescript binding publish
+rescript-bindings publish
 ```
 
 The CLI:
 
-1. Assumes the contributor already authenticated with `cloudflared` against the publish domain.
+1. Uses Cloudflare Access OAuth for CLIs to authenticate against the publish API.
 2. Prompts every time for:
-   - package name
-   - variant label
-   - local folder path
-   - package version range
-   - ReScript version range
-   - optional description
-3. Walks the local folder recursively.
+   - package name, with an interactive selector from local dependencies when available
+   - local file or folder path, with filesystem completion
+   - package version range, defaulting to the selected installed package version
+   - ReScript version range, defaulting from the local project
+3. Walks the selected source recursively when it is a folder.
 4. Rejects any file that is not `.res` or `.resi`.
 5. Uploads the prompted metadata plus file contents to the publish API.
-6. Prints the resulting release id and published variant metadata.
+6. Prints the resulting release id and package metadata.
 
 No checked-in publish manifest is required in v1. The CLI constructs the manifest in memory on every publish.
 
@@ -113,12 +113,13 @@ Protected routes are fronted by Cloudflare Access configured with GitHub as the 
 
 Publish/auth flow:
 
-1. Contributor authenticates against `https://rescript-binding-registry.josh-401.workers.dev/api/publish`.
-2. Contributor runs `rescript binding publish`.
-3. The CLI sends the publish request with the Access token/session expected by the protected endpoint.
-4. The Worker validates the Access assertion.
-5. The Worker resolves the authenticated identity and checks it against an internal allowlist in D1.
-6. If the account is allowlisted, the publish proceeds immediately.
+1. Contributor runs `rescript-bindings publish`.
+2. The CLI starts the Cloudflare Access OAuth flow for CLI clients and opens the user's browser.
+3. The CLI caches the resulting token bundle locally for the registry host.
+4. The CLI sends the publish request with the Access bearer token expected by the protected endpoint.
+5. The Worker validates the Access assertion.
+6. The Worker resolves the authenticated identity and checks it against an internal allowlist in D1.
+7. If the account is allowlisted, the publish proceeds immediately.
 
 Public read endpoints do not require authentication.
 
@@ -254,7 +255,7 @@ Returns:
 - file list
 - file contents
 
-This is the install payload consumed by `rescript binding add`.
+This is the install payload consumed by `rescript-bindings add`.
 
 ### Protected API
 
@@ -303,31 +304,34 @@ Administrative endpoint for adding or deactivating approved publishers. This is 
 
 ## CLI Design
 
-### `rescript binding add <package>`
+### `rescript-bindings add [package]`
 
 Inputs:
 
-- package name argument
+- optional package name argument
 - optional `--folder <path>`
 
 Default destination:
 
-- `src/bindings/<package>/<variant-slug>`
+- single-file releases default to `src/bindings/<PascalPackageName>.<res|resi>`
+- multi-file releases default to `src/bindings/<PascalPackageName>/...`
 
 Install behavior:
 
 1. Read local package metadata from the current project.
-2. Detect the installed version of the requested package.
-3. Detect the local ReScript version.
-4. Request available releases from the registry.
-5. Show an interactive picker sorted by compatibility.
-6. Fetch the selected release payload.
-7. Materialize files under the destination root.
-8. If any file exists already, prompt before overwriting.
+2. If the package argument is omitted, prompt from local dependencies.
+3. Detect the installed version of the requested package.
+4. Detect the local ReScript version.
+5. Request available releases from the registry.
+6. Show an interactive release table sorted by compatibility.
+7. Fetch the selected release payload.
+8. For single-file releases, prompt for an install file path and normalize the basename to a valid ReScript module filename.
+9. For folder installs, materialize files under the selected destination root while normalizing final ReScript filenames.
+10. If any file exists already, prompt before overwriting.
 
 The CLI should not silently skip files or attempt merge semantics. The user either confirms overwrite or cancels the install.
 
-### `rescript binding publish`
+### `rescript-bindings publish`
 
 Inputs:
 
@@ -335,19 +339,19 @@ Inputs:
 
 Publish behavior:
 
-1. Verify contributor auth by calling `GET /api/publish/v1/me`.
-2. Prompt for all release metadata.
-3. Prompt for the local folder path.
-4. Walk the folder recursively.
-5. Filter and validate `.res` and `.resi` files only.
-6. Show a publish preview:
+1. Authenticate or refresh through Cloudflare Access OAuth for CLIs.
+2. Verify contributor auth by calling `GET /api/publish/v1/me`.
+3. Prompt for all release metadata.
+4. Prompt for the local file or folder path.
+5. Walk the selected source recursively when it is a folder.
+6. Filter and validate `.res` and `.resi` files only.
+7. Show a publish preview:
    - package
-   - variant
    - version ranges
    - file count
    - file paths
-7. Submit the release payload.
-8. Print the resulting release id and confirmation.
+8. Submit the release payload.
+9. Print the resulting release id and confirmation.
 
 No local manifest file is created in v1.
 
@@ -369,6 +373,7 @@ Rejected:
 - empty uploads
 - duplicate paths after normalization
 - paths containing traversal segments that escape the uploaded folder root
+- install target basenames that cannot normalize to ReScript module filenames
 
 Operational limits:
 
@@ -389,7 +394,7 @@ The publish API enforces these limits before any D1 writes occur.
 
 ### Contributor errors
 
-- not authenticated: instruct the user to run the `cloudflared access login` command
+- not authenticated: start or retry the Cloudflare Access OAuth flow
 - not allowlisted: fail before prompting for upload details
 - invalid range: fail validation and keep the prompt flow local until corrected
 - invalid files: report the exact offending paths
@@ -422,10 +427,11 @@ This keeps the security boundary narrow:
 
 ### Phase 2: CLI MVP
 
-- `rescript binding add <package>`
-- `rescript binding publish`
+- `rescript-bindings add [package]`
+- `rescript-bindings publish`
 - compatibility-aware release picker
-- default install location
+- package selector from local dependencies
+- install file/path prompt with ReScript filename normalization
 - `--folder` override
 - overwrite confirmation
 
@@ -436,18 +442,18 @@ This keeps the security boundary narrow:
 - contributor/admin tooling for publisher management
 - optional install manifest for later update/remove commands
 - optional R2 migration if D1 file storage becomes limiting
-- optional first-party browser auth later if `cloudflared` dependency should be removed
+- optional richer browser/auth UX once the PoC flow is stable
 
 ## Design Decisions
 
-- Use `rescript binding ...` as the CLI namespace instead of top-level `add-binding`.
+- Use top-level `add` and `publish` commands in the PoC CLI instead of requiring an extra `binding` namespace.
 - Use interactive publishing instead of a checked-in manifest file.
 - Allow folder uploads, not just single-file uploads.
 - Allow only `.res` and `.resi` source files.
 - Store source file contents in D1 for v1.
 - Require overwrite confirmation on install.
 - Publish immediately after successful validation for allowlisted contributors.
-- Use Cloudflare Access with GitHub as the identity provider for publishing.
+- Use Cloudflare Access with GitHub as the identity provider for publishing, and use the CLI OAuth flow rather than `cloudflared`.
 
 ## Rationale
 

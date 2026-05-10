@@ -65,6 +65,25 @@ const fakeDb = {
   batch: async () => [],
 }
 
+const duplicatePublishDb = {
+  prepare: sql => ({
+    bind: (...params) => ({
+      all: async () => ({ results: [] }),
+      first: async () => {
+        if (sql.includes("SELECT id") && params[0] === "@inquirer/prompts") {
+          return { id: "existing-release" }
+        }
+
+        return null
+      },
+      run: async () => ({ success: true }),
+    }),
+  }),
+  batch: async () => {
+    throw new Error("duplicate publish should not insert rows")
+  },
+}
+
 const oldProtectedPath = await worker.fetch(new Request(`${publicApiBaseUrl}/v1/me`), {}, {})
 assert(oldProtectedPath.status === 404, "publish identity route is not exposed under public api")
 
@@ -77,6 +96,14 @@ const publicList = await worker.fetch(
 )
 
 assert(publicList.status === 200, "public package release list is available")
+
+const publicListMissingDb = await worker.fetch(
+  new Request(`${publicApiBaseUrl}/v1/packages/is-even/releases`),
+  {},
+  {}
+)
+
+assert(publicListMissingDb.status === 500, "public package release list requires D1 binding")
 
 const publicListBody = await publicList.json()
 assert(publicListBody.releases?.length === 1, "public package release list returns releases")
@@ -93,6 +120,14 @@ const publicRelease = await worker.fetch(
 )
 
 assert(publicRelease.status === 200, "public release payload is available")
+
+const publicReleaseMissing = await worker.fetch(
+  new Request(`${publicApiBaseUrl}/v1/releases/missing-release`),
+  { DB: fakeDb },
+  {}
+)
+
+assert(publicReleaseMissing.status === 404, "missing release payload returns 404")
 
 const publicReleaseBody = await publicRelease.json()
 assert(publicReleaseBody.id === "release-1", "public release payload maps release metadata")
@@ -123,6 +158,65 @@ const publishUnauthorized = await worker.fetch(
   {}
 )
 assert(publishUnauthorized.status === 401, "publish route requires access identity")
+
+const publishBadJson = await worker.fetch(
+  new Request(`${publishApiBaseUrl}/v1/releases`, {
+    method: "POST",
+    headers: {
+      "Cf-Access-Jwt-Assertion": makeJwt({ email: "dev@example.com" }),
+    },
+    body: "not-json",
+  }),
+  { DB: fakeDb },
+  {}
+)
+assert(publishBadJson.status === 400, "publish route rejects invalid JSON")
+
+const publishBadPayload = await worker.fetch(
+  new Request(`${publishApiBaseUrl}/v1/releases`, {
+    method: "POST",
+    headers: {
+      "Cf-Access-Jwt-Assertion": makeJwt({ email: "dev@example.com" }),
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      packageName: "@inquirer/prompts",
+      variantLabel: "",
+      peerPackageRange: "^8.4.2",
+      rescriptRange: "^12.0.0",
+      files: [{ relativePath: "Binding.res", content: "let x = 1\n" }],
+    }),
+  }),
+  { DB: fakeDb },
+  {}
+)
+assert(publishBadPayload.status === 400, "publish route validates required payload fields")
+
+const duplicatePublish = await worker.fetch(
+  new Request(`${publishApiBaseUrl}/v1/releases`, {
+    method: "POST",
+    headers: {
+      "Cf-Access-Jwt-Assertion": makeJwt({ email: "dev@example.com" }),
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      packageName: "@inquirer/prompts",
+      variantLabel: "default",
+      peerPackageRange: "^8.4.2",
+      rescriptRange: "^12.0.0",
+      files: [{ relativePath: "Binding.res", content: "let x = 1\n" }],
+    }),
+  }),
+  { DB: duplicatePublishDb },
+  {}
+)
+assert(duplicatePublish.status === 200, "duplicate publish returns success without inserting")
+const duplicatePublishBody = await duplicatePublish.json()
+assert(duplicatePublishBody.duplicate === true, "duplicate publish response is marked duplicate")
+assert(
+  duplicatePublishBody.releaseId === "existing-release",
+  "duplicate publish returns the existing release id"
+)
 
 const adminUnauthorized = await worker.fetch(
   new Request(`${publishApiBaseUrl}/v1/admin/publishers`, { method: "POST" }),

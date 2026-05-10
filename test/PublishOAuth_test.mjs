@@ -5,6 +5,7 @@ import {
   isAccessTokenUsable,
   publishBaseUrl,
   readOAuthCallback,
+  runPublish,
   runPublishAuth,
   selectAuthStrategy,
 } from "../src/js/PublishOAuth.mjs"
@@ -683,6 +684,121 @@ assert(
 assert(
   savedInteractiveBundle.bundle.refreshToken === "oauth:interactive-refresh",
   "interactive flow persists refresh token"
+)
+
+const publishCancelLogs = []
+const originalLogForCancel = console.log
+console.log = message => {
+  publishCancelLogs.push(String(message))
+}
+
+try {
+  await runPublish({
+    deps: {
+      fetch: async () => {
+        throw new Error("cancelled publish should not call fetch")
+      },
+      promptForPublishInput: async () => null,
+    },
+  })
+} finally {
+  console.log = originalLogForCancel
+}
+
+assert(
+  publishCancelLogs.includes("Publish cancelled."),
+  "publish cancellation returns before authentication"
+)
+
+let publishPostAuth = null
+let publishPostBody = null
+const publishLogs = []
+const originalLogForPublish = console.log
+console.log = message => {
+  publishLogs.push(String(message))
+}
+
+try {
+  await runPublish({
+    deps: {
+      now: () => now,
+      platform: "linux",
+      homeDir: "/home/josh",
+      readCache: async () => ({
+        accessToken: "publish-token",
+        refreshToken: "oauth:publish-refresh",
+        expiresAt: now + 120_000,
+        clientId: "publish-client",
+      }),
+      writeCache: async () => {
+        throw new Error("publish with reusable token should not persist cache")
+      },
+      fetch: async (url, init = {}) => {
+        if (url === `${publishBaseUrl}/v1/me`) {
+          return jsonResponse({
+            githubLogin: null,
+            displayName: "Publish Dev",
+            email: "publish@example.com",
+            access: { authenticated: true },
+          })
+        }
+
+        if (url === `${publishBaseUrl}/v1/releases`) {
+          publishPostAuth = init.headers.Authorization
+          publishPostBody = JSON.parse(init.body)
+          return jsonResponse(
+            {
+              releaseId: "published-release",
+              packageName: "@inquirer/prompts",
+              variantLabel: "isEven",
+              fileCount: 1,
+              duplicate: false,
+            },
+            201
+          )
+        }
+
+        throw new Error(`Unexpected URL in publish flow: ${url}`)
+      },
+      openBrowser: async () => {
+        throw new Error("publish with reusable token should not open browser")
+      },
+      createLoopbackServer: async () => {
+        throw new Error("publish with reusable token should not create loopback server")
+      },
+      promptForPublishInput: async () => ({
+        packageName: "@inquirer/prompts",
+        variantLabel: "isEven",
+        peerPackageRange: "^8.4.2",
+        rescriptRange: "^12.0.0",
+        files: [{ relativePath: "isEven.res", content: "let x = 1\n" }],
+      }),
+    },
+  })
+} finally {
+  console.log = originalLogForPublish
+}
+
+assert(publishPostAuth === "Bearer publish-token", "publish sends the cached bearer token")
+assert(
+  publishPostBody.packageName === "@inquirer/prompts",
+  "publish posts the prompted package name"
+)
+assert(
+  publishPostBody.files[0].relativePath === "isEven.res",
+  "publish posts prompted file entries"
+)
+assert(
+  publishLogs.includes("Published release: published-release"),
+  "publish prints the release id"
+)
+assert(
+  publishLogs.includes("@inquirer/prompts (1 file)"),
+  "publish prints a package-only success summary"
+)
+assert(
+  !publishLogs.some(message => message.includes("@inquirer/prompts/isEven")),
+  "publish success summary does not include variant or source filename"
 )
 
 console.log("PublishOAuth_test.mjs passed")

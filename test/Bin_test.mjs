@@ -30,17 +30,52 @@ assert(
 const wrapperMode = statSync(wrapperPath).mode
 assert((wrapperMode & 0o111) !== 0, "CLI wrapper is executable")
 
-const originalArgv = process.argv
+const importBinWithArgs = async (args, tag) => {
+  const originalArgv = process.argv
+  const originalExitCode = process.exitCode
+  const originalStdoutWrite = process.stdout.write
+  const originalStderrWrite = process.stderr.write
+  let stdout = ""
+  let stderr = ""
 
-process.argv = [process.execPath, wrapperPath, "--help"]
+  process.argv = [process.execPath, wrapperPath, ...args]
+  process.exitCode = undefined
+  process.stdout.write = chunk => {
+    stdout += String(chunk)
+    return true
+  }
+  process.stderr.write = chunk => {
+    stderr += String(chunk)
+    return true
+  }
 
-try {
-  await import(`${wrapperUrl.href}?bin-test`)
-} finally {
-  process.argv = originalArgv
+  try {
+    await import(`${wrapperUrl.href}?${tag}`)
+    await new Promise(resolve => setImmediate(resolve))
+    return { stdout, stderr, exitCode: process.exitCode }
+  } finally {
+    process.argv = originalArgv
+    process.exitCode = originalExitCode
+    process.stdout.write = originalStdoutWrite
+    process.stderr.write = originalStderrWrite
+  }
 }
 
-assert(process.exitCode === undefined || process.exitCode === 0, "bundled CLI help does not fail")
+const rootHelp = await importBinWithArgs(["--help"], "bin-test-root-help")
+assert(rootHelp.exitCode === undefined || rootHelp.exitCode === 0, "bundled CLI help does not fail")
+assert(rootHelp.stdout.includes("Commands:"), "bundled CLI help prints command list")
+
+const addHelp = await importBinWithArgs(["add", "--help"], "bin-test-add-help")
+assert(addHelp.exitCode === undefined || addHelp.exitCode === 0, "add help exits successfully")
+assert(addHelp.stdout.includes("Usage: rescript-bindings add [options] [package]"), "add help shows optional package argument")
+assert(addHelp.stdout.includes("--folder <path>"), "add help documents folder override")
+
+const legacyBinding = await importBinWithArgs(["binding", "publish"], "bin-test-legacy-binding")
+assert(legacyBinding.exitCode !== undefined && legacyBinding.exitCode !== 0, "legacy binding namespace is rejected")
+assert(
+  legacyBinding.stderr.includes("unknown command 'binding'"),
+  "legacy binding namespace prints an unknown command error"
+)
 
 const cliModule = await import(`${cliUrl.href}?publish-auth-test`)
 let runAuthCalled = false

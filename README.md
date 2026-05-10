@@ -1,11 +1,13 @@
 # ReScript Binding Registry POC
 
-This repository is implemented in **ReScript v12**, with runtime bindings kept under `src/bindings`.
+This repository is implemented in **ReScript v12** with a Node CLI bundle and a Cloudflare Worker registry API.
 
 ## Layout
 
 - `src/Worker.res`: registry API surface + request handling for public/protected routes.
-- `src/Cli.res`: `rescript binding add` and `rescript binding publish` command flow.
+- `src/Command.mjs`: Commander-powered CLI entrypoint for `add` and `publish`.
+- `src/js/RegistryAdd.mjs`: registry install flow, package/release selectors, install-path validation.
+- `src/js/PublishOAuth.mjs`: Cloudflare Access OAuth and publish flow.
 - `src/core/Validation.res`: upload/path/size validation rules and slug helpers.
 - `src/core/RegistryTypes.res`: shared domain types for releases, files, and publish payloads.
 - `src/bindings/*`: runtime externals (Node process/path/fs and fetch).
@@ -20,11 +22,39 @@ npm run build
 npm test
 ```
 
-`npm test` currently aliases the ReScript build so type-checking and codegen are always enforced.
+`npm run build` type-checks ReScript and regenerates `bin/index.mjs`. `npm test` runs the build and the current script-based test suite.
+
+## CLI
+
+Install published bindings:
+
+```bash
+node ./bin/index.mjs add
+node ./bin/index.mjs add @inquirer/prompts
+node ./bin/index.mjs add @inquirer/prompts --folder vendor/bindings
+```
+
+When the package argument is omitted, `add` offers an interactive selector populated from `peerDependencies`, `dependencies`, and `devDependencies` in the local `package.json`. The release picker shows author, JavaScript package compatibility, and ReScript compatibility in a table.
+
+For single-file releases, `add` prompts for the install file path and defaults to a ReScript-safe PascalCase filename derived from the package name, for example:
+
+```text
+src/bindings/InquirerPrompts.res
+```
+
+The user may choose another directory, but the final file basename is normalized to a valid ReScript module filename. For example, `custom/path/inquirerPrompts.res` writes `custom/path/InquirerPrompts.res`.
+
+Publish bindings:
+
+```bash
+node ./bin/index.mjs publish
+```
+
+`publish` authenticates through Cloudflare Access OAuth for CLIs, prompts for package metadata and source files, and sends releases to the protected publish API.
 
 ## API Base
 
-The CLI defaults to the Worker API route:
+The CLI uses the Worker API route:
 
 ```text
 https://rescript-binding-registry.josh-401.workers.dev/api/publish
