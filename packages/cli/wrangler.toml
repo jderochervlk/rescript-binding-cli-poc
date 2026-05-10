@@ -2,6 +2,9 @@ name = "rescript-binding-registry"
 main = "src/Worker.res.mjs"
 compatibility_date = "2026-04-19"
 
+[build]
+command = "pnpm run build:res"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "rescript-binding-registry"
