@@ -31,6 +31,7 @@ This repository is a pnpm monorepo. The current package is implemented in **ReSc
 ## Layout
 
 - `packages/cli`: CLI package and Worker registry API.
+- `packages/skills`: shared Codex/Claude skills for creating ReScript bindings.
 - `packages/cli/src/Command.res`: Commander-powered CLI entrypoint for `add` and `publish`.
 - `packages/cli/src/Worker.res`: Cloudflare Worker runtime entrypoint, registry routing, and publish validation.
 - `packages/cli/src/bindings/RegistryAdd.res`: Node/TTY/filesystem orchestration for installing bindings.
@@ -62,6 +63,34 @@ pnpm test
 node ./packages/cli/bin/index.mjs add jotai
 node ./packages/cli/bin/index.mjs publish
 ```
+
+## Agent Skills
+
+`packages/skills` contains `rescript-bindings-generator`, a shared skill for
+creating ReScript bindings for a named npm package.
+
+Install it into Codex from a local checkout:
+
+```bash
+mkdir -p ~/.codex/skills
+ln -s "$(pwd)/packages/skills/rescript-bindings-generator" ~/.codex/skills/rescript-bindings-generator
+```
+
+Restart Codex after installing. Then ask for the skill by name:
+
+```text
+Use $rescript-bindings-generator to create ReScript bindings for jotai.
+```
+
+For Claude Code plugin-based local development, load the package as a plugin:
+
+```bash
+cc --plugin-dir "$(pwd)/packages/skills"
+```
+
+The Claude plugin manifest is in `packages/skills/.claude-plugin/plugin.json`,
+and its `skills/rescript-bindings-generator` entry points at the same canonical
+skill used by Codex.
 
 ## Worker
 
