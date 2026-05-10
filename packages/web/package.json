@@ -1,0 +1,23 @@
+{
+  "name": "@jvlk/rescript-bindings-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm run build:res && pnpm run build:worker",
+    "build:res": "rescript build",
+    "build:worker": "rolldown -c",
+    "clean": "rescript clean",
+    "test": "pnpm run build && node test/Worker_test.res.mjs",
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "xote": "^6.2.0"
+  },
+  "devDependencies": {
+    "rescript": "^12.0.0",
+    "rolldown": "^1.0.0",
+    "wrangler": "^4.90.0"
+  }
+}
