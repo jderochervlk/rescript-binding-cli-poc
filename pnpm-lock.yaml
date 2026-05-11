@@ -29,6 +29,22 @@ importers:
         specifier: ^4.90.0
         version: 4.90.0
 
+  packages/web:
+    dependencies:
+      xote:
+        specifier: ^6.2.0
+        version: 6.2.0
+    devDependencies:
+      rescript:
+        specifier: ^12.0.0
+        version: 12.2.0
+      rolldown:
+        specifier: ^1.0.0
+        version: 1.0.0
+      wrangler:
+        specifier: ^4.90.0
+        version: 4.90.0
+
 packages:
 
   '@cloudflare/kv-asset-handler@0.5.0':
@@ -766,6 +782,9 @@ packages:
   pathe@2.0.3:
     resolution: {integrity: sha512-WUjGcAqP1gQacoQe+OBJsFA7Ld4DyXuUIjZ5cc75cLHvJ7dtNsTugphxIADwspS+AraAUePCKrSVtPLFj/F88w==}
 
+  rescript-signals@3.1.1:
+    resolution: {integrity: sha512-r7xDLb+xXHWPPGbxtcfVU0ny8lE5kl7VwYGnLRcBj+mhewRjneABHeQNyLSYbP3e5LmAZR2j6oavCgp8OGfuJg==}
+
   rescript@12.2.0:
     resolution: {integrity: sha512-1Jf2cmNhyx5Mj2vwZ4XXPcXvNSjGj9D1jPBUcoqIOqRpLPo1ch2Ta/7eWh23xAHWHK5ow7BCDyYFjvZSjyjLzg==}
     engines: {node: '>=20.11.0'}
@@ -832,6 +851,9 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
+
+  xote@6.2.0:
+    resolution: {integrity: sha512-lJt6EerIvUzg/bTztFUsSqW91PMRBFzKUHD+/q7Mlai4eskmKhwo10eL3dmsQCd07XG4t2t/b4ZiShkLK8zkOQ==}
 
   youch-core@0.3.3:
     resolution: {integrity: sha512-ho7XuGjLaJ2hWHoK8yFnsUGy2Y5uDpqSTq1FkHLK4/oqKtyUU1AFbOOxY4IpC9f0fTLjwYbslUz0Po5BpD1wrA==}
@@ -1336,6 +1358,8 @@ snapshots:
 
   pathe@2.0.3: {}
 
+  rescript-signals@3.1.1: {}
+
   rescript@12.2.0:
     dependencies:
       '@rescript/runtime': 12.2.0
@@ -1440,6 +1464,10 @@ snapshots:
       - utf-8-validate
 
   ws@8.18.0: {}
+
+  xote@6.2.0:
+    dependencies:
+      rescript-signals: 3.1.1
 
   youch-core@0.3.3:
     dependencies:

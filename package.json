@@ -3,8 +3,8 @@
     "private": true,
     "packageManager": "pnpm@10.32.0",
     "scripts": {
-        "build": "pnpm --filter @jvlk/rescript-bindings build",
-        "clean": "pnpm --filter @jvlk/rescript-bindings clean",
-        "test": "pnpm --filter @jvlk/rescript-bindings test"
+        "build": "pnpm --filter @jvlk/rescript-bindings build && pnpm --filter @jvlk/rescript-bindings-web build",
+        "clean": "pnpm --filter @jvlk/rescript-bindings clean && pnpm --filter @jvlk/rescript-bindings-web clean",
+        "test": "pnpm --filter @jvlk/rescript-bindings test && pnpm --filter @jvlk/rescript-bindings-web test"
     }
 }

@@ -7,7 +7,7 @@
         "build:res": "rescript build",
         "build:bin": "rolldown -c && node scripts/MakeBinExecutable.res.mjs",
         "clean": "rescript clean",
-        "test": "pnpm run build && node test/Validation_test.res.mjs && node test/Cli_test.res.mjs && node test/AddCore_test.res.mjs && node test/PublishCore_test.res.mjs && node test/PackageJson_test.res.mjs && node test/Add_test.res.mjs && node test/PublishOAuth_test.res.mjs && node test/Worker_test.res.mjs && node test/Bin_test.res.mjs && node test/D1_test.res.mjs"
+        "test": "pnpm run build && node test/Validation_test.res.mjs && node test/Cli_test.res.mjs && node test/AddCore_test.res.mjs && node test/PublishCore_test.res.mjs && node test/PackageJson_test.res.mjs && node test/Add_test.res.mjs && node test/PublishOAuth_test.res.mjs && node test/Worker_test.res.mjs && node test/DiscoveryApi_test.res.mjs && node test/Bin_test.res.mjs && node test/D1_test.res.mjs"
     },
     "devDependencies": {
         "@inquirer/prompts": "^8.4.2",
