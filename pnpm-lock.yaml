@@ -9,23 +9,25 @@ importers:
   .: {}
 
   packages/cli:
-    dependencies:
+    devDependencies:
       '@inquirer/prompts':
         specifier: ^8.4.2
         version: 8.4.2
+      '@rescript/runtime':
+        specifier: ^12.2.0
+        version: 12.2.0
       commander:
         specifier: ^14.0.3
         version: 14.0.3
-      wrangler:
-        specifier: ^4.90.0
-        version: 4.90.0
-    devDependencies:
       rescript:
         specifier: ^12.0.0
         version: 12.2.0
       rolldown:
         specifier: ^1.0.0
         version: 1.0.0
+      wrangler:
+        specifier: ^4.90.0
+        version: 4.90.0
 
 packages:
 
