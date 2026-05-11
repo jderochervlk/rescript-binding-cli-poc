@@ -10,15 +10,14 @@
         "test": "pnpm run build && node test/Validation_test.res.mjs && node test/Cli_test.res.mjs && node test/AddCore_test.res.mjs && node test/PublishCore_test.res.mjs && node test/PackageJson_test.res.mjs && node test/Add_test.res.mjs && node test/PublishOAuth_test.res.mjs && node test/Worker_test.res.mjs && node test/Bin_test.res.mjs && node test/D1_test.res.mjs"
     },
     "devDependencies": {
-        "rescript": "^12.0.0",
-        "rolldown": "^1.0.0"
-    },
-    "bin": "./bin/index.mjs",
-    "dependencies": {
         "@inquirer/prompts": "^8.4.2",
+        "@rescript/runtime": "^12.2.0",
         "commander": "^14.0.3",
+        "rescript": "^12.0.0",
+        "rolldown": "^1.0.0",
         "wrangler": "^4.90.0"
     },
+    "bin": "./bin/index.mjs",
     "files": [
         "README.md",
         "package.json",
