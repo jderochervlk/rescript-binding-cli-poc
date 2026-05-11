@@ -1,0 +1,4 @@
+interface:
+  display_name: "ReScript Binding Generator"
+  short_description: "Generate ReScript bindings from npm packages"
+  default_prompt: "Use $rescript-bindings-generator to create ReScript bindings for an npm package."
