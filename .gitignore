@@ -1,5 +1,6 @@
 node_modules
 lib
 .wrangler
+.worktrees
 *.res.mjs
 .env
