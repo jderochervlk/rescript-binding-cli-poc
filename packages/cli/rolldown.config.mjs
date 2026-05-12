@@ -1,14 +1,14 @@
 import { defineConfig } from "rolldown";
 
 export default defineConfig({
-    input: "src/Command.res.mjs",
-    platform: "node",
-    external: [/^node:/],
-    treeshake: true,
-    output: {
-        file: "bin/index.mjs",
-        format: "esm",
-        banner: () => "#!/usr/bin/env node",
-        minify: true,
-    },
+  input: "src/Command.res.mjs",
+  platform: "node",
+  external: [/^node:/],
+  treeshake: true,
+  output: {
+    file: "bin/index.mjs",
+    format: "esm",
+    banner: () => "#!/usr/bin/env node",
+    minify: true,
+  },
 });

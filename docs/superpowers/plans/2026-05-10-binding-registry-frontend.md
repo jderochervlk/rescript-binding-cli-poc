@@ -40,6 +40,7 @@
 ## Task 1: Registry Discovery API Tests
 
 **Files:**
+
 - Create: `packages/cli/test/DiscoveryApi_test.res`
 - Modify: `packages/cli/package.json`
 
@@ -276,6 +277,7 @@ git commit -m "test: cover binding discovery api"
 ## Task 2: Registry Discovery API Implementation
 
 **Files:**
+
 - Modify: `packages/cli/src/Worker.res`
 - Test: `packages/cli/test/DiscoveryApi_test.res`
 
@@ -682,6 +684,7 @@ git commit -m "feat: add binding discovery api"
 ## Task 3: Web Package Scaffold And Xote SSR Smoke Test
 
 **Files:**
+
 - Create: `packages/web/package.json`
 - Create: `packages/web/rescript.json`
 - Create: `packages/web/rolldown.config.mjs`
@@ -995,6 +998,7 @@ git commit -m "feat: scaffold binding registry web worker"
 ## Task 4: Web Registry Client And Full Page Rendering
 
 **Files:**
+
 - Create: `packages/web/src/RegistryClient.res`
 - Modify: `packages/web/src/Pages.res`
 - Modify: `packages/web/src/Worker.res`
@@ -1497,6 +1501,7 @@ git commit -m "feat: render binding registry frontend"
 ## Task 5: Root Scripts, Full Verification, And Local Worker Check
 
 **Files:**
+
 - Modify: `package.json`
 - Verify: `packages/cli/src/Worker.res`
 - Verify: `packages/web/src/Worker.res`

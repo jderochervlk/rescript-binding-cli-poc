@@ -96,6 +96,7 @@ The plan assumes the authorization server metadata for the publish hostname incl
 ### Task 1: Pure OAuth Helper Utilities
 
 **Files:**
+
 - Create: `src/js/PublishOAuth.mjs`
 - Test: `test/PublishOAuth_test.mjs`
 
@@ -106,25 +107,24 @@ import {
   cacheFilePathFor,
   isAccessTokenUsable,
   selectAuthStrategy,
-} from "../src/js/PublishOAuth.mjs"
+} from "../src/js/PublishOAuth.mjs";
 
 const assert = (condition, label) => {
   if (!condition) {
-    throw new Error(`Assertion failed: ${label}`)
+    throw new Error(`Assertion failed: ${label}`);
   }
-}
+};
 
-const now = Date.now()
+const now = Date.now();
 
 assert(
   cacheFilePathFor({
     platform: "linux",
     homeDir: "/home/josh",
     hostname: "publish.bindings.rescript-lang.org",
-  }) ===
-    "/home/josh/.local/state/rescript-bindings/oauth/publish.bindings.rescript-lang.org.json",
-  "linux cache path uses XDG state directory"
-)
+  }) === "/home/josh/.local/state/rescript-bindings/oauth/publish.bindings.rescript-lang.org.json",
+  "linux cache path uses XDG state directory",
+);
 
 assert(
   cacheFilePathFor({
@@ -133,8 +133,8 @@ assert(
     hostname: "publish.bindings.rescript-lang.org",
   }) ===
     "/Users/josh/Library/Application Support/rescript-bindings/oauth/publish.bindings.rescript-lang.org.json",
-  "macOS cache path uses Application Support"
-)
+  "macOS cache path uses Application Support",
+);
 
 assert(
   cacheFilePathFor({
@@ -143,35 +143,35 @@ assert(
     hostname: "publish.bindings.rescript-lang.org",
   }) ===
     "C:/Users/josh/AppData/Roaming/rescript-bindings/oauth/publish.bindings.rescript-lang.org.json",
-  "windows cache path uses roaming app data"
-)
+  "windows cache path uses roaming app data",
+);
 
 assert(
   isAccessTokenUsable({ accessToken: "token", expiresAt: now + 120_000 }, now),
-  "access token with more than one minute remaining is reusable"
-)
+  "access token with more than one minute remaining is reusable",
+);
 
 assert(
   !isAccessTokenUsable({ accessToken: "token", expiresAt: now + 10_000 }, now),
-  "nearly expired access token is not reusable"
-)
+  "nearly expired access token is not reusable",
+);
 
 assert(
   selectAuthStrategy({ accessToken: "token", expiresAt: now + 120_000 }, now) === "reuse",
-  "valid access token uses reuse path"
-)
+  "valid access token uses reuse path",
+);
 
 assert(
   selectAuthStrategy(
     { accessToken: "token", expiresAt: now - 1_000, refreshToken: "refresh" },
-    now
+    now,
   ) === "refresh",
-  "expired access token with refresh token uses refresh path"
-)
+  "expired access token with refresh token uses refresh path",
+);
 
-assert(selectAuthStrategy(null, now) === "interactive", "missing bundle uses interactive path")
+assert(selectAuthStrategy(null, now) === "interactive", "missing bundle uses interactive path");
 
-console.log("PublishOAuth_test.mjs passed")
+console.log("PublishOAuth_test.mjs passed");
 ```
 
 - [x] **Step 2: Run the helper test to verify it fails**
@@ -182,8 +182,8 @@ Expected: FAIL with `ERR_MODULE_NOT_FOUND` because `src/js/PublishOAuth.mjs` doe
 - [x] **Step 3: Write the minimal pure helper implementation**
 
 ```js
-import path from "node:path"
-import { homedir } from "node:os"
+import path from "node:path";
+import { homedir } from "node:os";
 
 export const cacheFilePathFor = ({
   platform = process.platform,
@@ -191,7 +191,7 @@ export const cacheFilePathFor = ({
   hostname,
 }) => {
   if (!hostname) {
-    throw new Error("cacheFilePathFor requires a hostname")
+    throw new Error("cacheFilePathFor requires a hostname");
   }
 
   if (platform === "darwin") {
@@ -201,43 +201,36 @@ export const cacheFilePathFor = ({
       "Application Support",
       "rescript-bindings",
       "oauth",
-      `${hostname}.json`
-    )
+      `${hostname}.json`,
+    );
   }
 
   if (platform === "win32") {
-    return path.join(homeDir, "rescript-bindings", "oauth", `${hostname}.json`)
+    return path.join(homeDir, "rescript-bindings", "oauth", `${hostname}.json`);
   }
 
-  return path.join(
-    homeDir,
-    ".local",
-    "state",
-    "rescript-bindings",
-    "oauth",
-    `${hostname}.json`
-  )
-}
+  return path.join(homeDir, ".local", "state", "rescript-bindings", "oauth", `${hostname}.json`);
+};
 
 export const isAccessTokenUsable = (bundle, now = Date.now()) => {
   if (!bundle?.accessToken || typeof bundle.expiresAt !== "number") {
-    return false
+    return false;
   }
 
-  return bundle.expiresAt - now > 60_000
-}
+  return bundle.expiresAt - now > 60_000;
+};
 
 export const selectAuthStrategy = (bundle, now = Date.now()) => {
   if (isAccessTokenUsable(bundle, now)) {
-    return "reuse"
+    return "reuse";
   }
 
   if (bundle?.refreshToken) {
-    return "refresh"
+    return "refresh";
   }
 
-  return "interactive"
-}
+  return "interactive";
+};
 ```
 
 - [x] **Step 4: Run the helper test to verify it passes**
@@ -255,6 +248,7 @@ git commit -m "test: add oauth helper utility coverage"
 ### Task 2: Interactive OAuth Flow And Cached `/v1/me`
 
 **Files:**
+
 - Modify: `src/js/PublishOAuth.mjs`
 - Modify: `test/PublishOAuth_test.mjs`
 - Modify: `package.json`
@@ -267,45 +261,44 @@ import {
   isAccessTokenUsable,
   selectAuthStrategy,
   runPublishAuth,
-} from "../src/js/PublishOAuth.mjs"
+} from "../src/js/PublishOAuth.mjs";
 
 const assert = (condition, label) => {
   if (!condition) {
-    throw new Error(`Assertion failed: ${label}`)
+    throw new Error(`Assertion failed: ${label}`);
   }
-}
+};
 
-const jsonResponse = body =>
+const jsonResponse = (body) =>
   new Response(JSON.stringify(body), {
     status: 200,
     headers: { "content-type": "application/json" },
-  })
+  });
 
-const now = 1_716_000_000_000
+const now = 1_716_000_000_000;
 
 assert(
   cacheFilePathFor({
     platform: "linux",
     homeDir: "/home/josh",
     hostname: "publish.bindings.rescript-lang.org",
-  }) ===
-    "/home/josh/.local/state/rescript-bindings/oauth/publish.bindings.rescript-lang.org.json",
-  "linux cache path uses XDG state directory"
-)
+  }) === "/home/josh/.local/state/rescript-bindings/oauth/publish.bindings.rescript-lang.org.json",
+  "linux cache path uses XDG state directory",
+);
 
 assert(
   isAccessTokenUsable({ accessToken: "token", expiresAt: now + 120_000 }, now),
-  "access token with more than one minute remaining is reusable"
-)
+  "access token with more than one minute remaining is reusable",
+);
 
 assert(
   selectAuthStrategy({ accessToken: "token", expiresAt: now + 120_000 }, now) === "reuse",
-  "valid access token uses reuse path"
-)
+  "valid access token uses reuse path",
+);
 
-let refreshTokenBody = null
-let refreshWrite = null
-let refreshMeAuth = null
+let refreshTokenBody = null;
+let refreshWrite = null;
+let refreshMeAuth = null;
 
 const refreshResult = await runPublishAuth({
   publishBaseUrl: "https://publish.example.com",
@@ -320,56 +313,67 @@ const refreshResult = await runPublishAuth({
       clientId: "registered-client",
     }),
     writeCache: async (cachePath, bundle) => {
-      refreshWrite = { cachePath, bundle }
+      refreshWrite = { cachePath, bundle };
     },
     fetch: async (url, init = {}) => {
       if (url === "https://publish.example.com/.well-known/oauth-authorization-server") {
         return jsonResponse({
-          authorization_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/authorization",
+          authorization_endpoint:
+            "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/authorization",
           token_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/token",
-          registration_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/registration",
-        })
+          registration_endpoint:
+            "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/registration",
+        });
       }
 
       if (url === "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/token") {
-        refreshTokenBody = init.body
+        refreshTokenBody = init.body;
         return jsonResponse({
           access_token: "fresh-token",
           refresh_token: "oauth:new-refresh-token",
           expires_in: 300,
-        })
+        });
       }
 
       if (url === "https://publish.example.com/v1/me") {
-        refreshMeAuth = init.headers.Authorization
+        refreshMeAuth = init.headers.Authorization;
         return jsonResponse({
           githubLogin: null,
           displayName: null,
           email: "dev@example.com",
           access: { authenticated: true },
-        })
+        });
       }
 
-      throw new Error(`Unexpected URL in refresh flow: ${url}`)
+      throw new Error(`Unexpected URL in refresh flow: ${url}`);
     },
     openBrowser: async () => {
-      throw new Error("refresh flow should not open a browser")
+      throw new Error("refresh flow should not open a browser");
     },
     createLoopbackServer: async () => {
-      throw new Error("refresh flow should not start loopback server")
+      throw new Error("refresh flow should not start loopback server");
     },
   },
-})
+});
 
-assert(refreshTokenBody.includes("grant_type=refresh_token"), "refresh token request uses refresh_token grant")
-assert(refreshTokenBody.includes("client_id=registered-client"), "refresh token request includes client_id")
-assert(refreshMeAuth === "Bearer fresh-token", "refresh flow uses bearer token for /v1/me")
-assert(refreshResult.email === "dev@example.com", "refresh flow returns authenticated identity")
-assert(refreshWrite.bundle.accessToken === "fresh-token", "refresh flow persists updated access token")
+assert(
+  refreshTokenBody.includes("grant_type=refresh_token"),
+  "refresh token request uses refresh_token grant",
+);
+assert(
+  refreshTokenBody.includes("client_id=registered-client"),
+  "refresh token request includes client_id",
+);
+assert(refreshMeAuth === "Bearer fresh-token", "refresh flow uses bearer token for /v1/me");
+assert(refreshResult.email === "dev@example.com", "refresh flow returns authenticated identity");
+assert(
+  refreshWrite.bundle.accessToken === "fresh-token",
+  "refresh flow persists updated access token",
+);
 
-let openedUrl = null
-let savedInteractiveBundle = null
-let interactiveMeAuth = null
+let openedUrl = null;
+let savedInteractiveBundle = null;
+let interactiveMeAuth = null;
 
 const interactiveResult = await runPublishAuth({
   publishBaseUrl: "https://publish.example.com",
@@ -379,7 +383,7 @@ const interactiveResult = await runPublishAuth({
     homeDir: "/home/josh",
     readCache: async () => null,
     writeCache: async (cachePath, bundle) => {
-      savedInteractiveBundle = { cachePath, bundle }
+      savedInteractiveBundle = { cachePath, bundle };
     },
     randomString: () => "fixed-state-token",
     codeVerifier: () => "fixed-code-verifier",
@@ -387,17 +391,19 @@ const interactiveResult = await runPublishAuth({
     fetch: async (url, init = {}) => {
       if (url === "https://publish.example.com/.well-known/oauth-authorization-server") {
         return jsonResponse({
-          authorization_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/authorization",
+          authorization_endpoint:
+            "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/authorization",
           token_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/token",
-          registration_endpoint: "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/registration",
-        })
+          registration_endpoint:
+            "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/registration",
+        });
       }
 
       if (url === "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/registration") {
         return jsonResponse({
           client_id: "dynamic-client",
           redirect_uris: ["http://127.0.0.1:43123/callback"],
-        })
+        });
       }
 
       if (url === "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/token") {
@@ -405,23 +411,26 @@ const interactiveResult = await runPublishAuth({
           access_token: "interactive-token",
           refresh_token: "oauth:interactive-refresh",
           expires_in: 300,
-        })
+        });
       }
 
       if (url === "https://publish.example.com/v1/me") {
-        interactiveMeAuth = init.headers.Authorization
+        interactiveMeAuth = init.headers.Authorization;
         return jsonResponse({
           githubLogin: null,
           displayName: "Interactive Dev",
           email: "interactive@example.com",
           access: { authenticated: true },
-        })
+        });
       }
 
-      throw new Error(`Unexpected URL in interactive flow: ${url}`)
+      throw new Error(`Unexpected URL in interactive flow: ${url}`);
     },
     createLoopbackServer: async ({ expectedState }) => {
-      assert(expectedState === "fixed-state-token", "loopback server receives expected OAuth state")
+      assert(
+        expectedState === "fixed-state-token",
+        "loopback server receives expected OAuth state",
+      );
       return {
         redirectUri: "http://127.0.0.1:43123/callback",
         waitForCode: async () => ({
@@ -429,28 +438,40 @@ const interactiveResult = await runPublishAuth({
           state: "fixed-state-token",
         }),
         close: async () => {},
-      }
+      };
     },
-    openBrowser: async url => {
-      openedUrl = url
+    openBrowser: async (url) => {
+      openedUrl = url;
     },
   },
-})
+});
 
-assert(openedUrl.includes("client_id=dynamic-client"), "interactive flow opens browser with registered client_id")
-assert(openedUrl.includes("code_challenge=fixed-code-challenge"), "interactive flow uses PKCE challenge")
-assert(openedUrl.includes("resource=https%3A%2F%2Fpublish.example.com"), "interactive flow sends resource indicator")
-assert(interactiveMeAuth === "Bearer interactive-token", "interactive flow uses bearer token for /v1/me")
+assert(
+  openedUrl.includes("client_id=dynamic-client"),
+  "interactive flow opens browser with registered client_id",
+);
+assert(
+  openedUrl.includes("code_challenge=fixed-code-challenge"),
+  "interactive flow uses PKCE challenge",
+);
+assert(
+  openedUrl.includes("resource=https%3A%2F%2Fpublish.example.com"),
+  "interactive flow sends resource indicator",
+);
+assert(
+  interactiveMeAuth === "Bearer interactive-token",
+  "interactive flow uses bearer token for /v1/me",
+);
 assert(
   interactiveResult.displayName === "Interactive Dev",
-  "interactive flow returns authenticated identity"
-)
+  "interactive flow returns authenticated identity",
+);
 assert(
   savedInteractiveBundle.bundle.refreshToken === "oauth:interactive-refresh",
-  "interactive flow persists refresh token"
-)
+  "interactive flow persists refresh token",
+);
 
-console.log("PublishOAuth_test.mjs passed")
+console.log("PublishOAuth_test.mjs passed");
 ```
 
 - [ ] **Step 2: Run the expanded helper test to verify it fails**
@@ -461,12 +482,12 @@ Expected: FAIL with `SyntaxError` or `TypeError` because `runPublishAuth` is not
 - [ ] **Step 3: Implement dynamic client registration, PKCE, refresh, and `/v1/me` fetch**
 
 ```js
-import path from "node:path"
-import { homedir } from "node:os"
-import { createHash, randomBytes } from "node:crypto"
-import { createServer } from "node:http"
-import { mkdir, readFile, writeFile } from "node:fs/promises"
-import { spawn } from "node:child_process"
+import path from "node:path";
+import { homedir } from "node:os";
+import { createHash, randomBytes } from "node:crypto";
+import { createServer } from "node:http";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 
 export const cacheFilePathFor = ({
   platform = process.platform,
@@ -474,7 +495,7 @@ export const cacheFilePathFor = ({
   hostname,
 }) => {
   if (!hostname) {
-    throw new Error("cacheFilePathFor requires a hostname")
+    throw new Error("cacheFilePathFor requires a hostname");
   }
 
   if (platform === "darwin") {
@@ -484,129 +505,122 @@ export const cacheFilePathFor = ({
       "Application Support",
       "rescript-bindings",
       "oauth",
-      `${hostname}.json`
-    )
+      `${hostname}.json`,
+    );
   }
 
   if (platform === "win32") {
-    return path.join(homeDir, "rescript-bindings", "oauth", `${hostname}.json`)
+    return path.join(homeDir, "rescript-bindings", "oauth", `${hostname}.json`);
   }
 
-  return path.join(
-    homeDir,
-    ".local",
-    "state",
-    "rescript-bindings",
-    "oauth",
-    `${hostname}.json`
-  )
-}
+  return path.join(homeDir, ".local", "state", "rescript-bindings", "oauth", `${hostname}.json`);
+};
 
 export const isAccessTokenUsable = (bundle, now = Date.now()) => {
   if (!bundle?.accessToken || typeof bundle.expiresAt !== "number") {
-    return false
+    return false;
   }
 
-  return bundle.expiresAt - now > 60_000
-}
+  return bundle.expiresAt - now > 60_000;
+};
 
 export const selectAuthStrategy = (bundle, now = Date.now()) => {
   if (isAccessTokenUsable(bundle, now)) {
-    return "reuse"
+    return "reuse";
   }
 
   if (bundle?.refreshToken) {
-    return "refresh"
+    return "refresh";
   }
 
-  return "interactive"
-}
+  return "interactive";
+};
 
-export const codeChallengeFromVerifier = verifier =>
-  createHash("sha256").update(verifier).digest("base64url")
+export const codeChallengeFromVerifier = (verifier) =>
+  createHash("sha256").update(verifier).digest("base64url");
 
-const defaultRandomString = () => randomBytes(24).toString("hex")
-const defaultCodeVerifier = () => randomBytes(48).toString("base64url")
+const defaultRandomString = () => randomBytes(24).toString("hex");
+const defaultCodeVerifier = () => randomBytes(48).toString("base64url");
 
-const defaultReadCache = async cachePath => {
+const defaultReadCache = async (cachePath) => {
   try {
-    return JSON.parse(await readFile(cachePath, "utf8"))
+    return JSON.parse(await readFile(cachePath, "utf8"));
   } catch (error) {
     if (error?.code === "ENOENT") {
-      return null
+      return null;
     }
 
-    return null
+    return null;
   }
-}
+};
 
 const defaultWriteCache = async (cachePath, bundle) => {
-  await mkdir(path.dirname(cachePath), { recursive: true })
-  await writeFile(cachePath, JSON.stringify(bundle, null, 2), { mode: 0o600 })
-}
+  await mkdir(path.dirname(cachePath), { recursive: true });
+  await writeFile(cachePath, JSON.stringify(bundle, null, 2), { mode: 0o600 });
+};
 
-const defaultOpenBrowser = async url => {
-  const platform = process.platform
+const defaultOpenBrowser = async (url) => {
+  const platform = process.platform;
   const command =
     platform === "darwin"
       ? ["open", [url]]
       : platform === "win32"
         ? ["cmd", ["/c", "start", "", url]]
-        : ["xdg-open", [url]]
+        : ["xdg-open", [url]];
 
   await new Promise((resolve, reject) => {
-    const child = spawn(command[0], command[1], { stdio: "ignore" })
-    child.once("error", reject)
-    child.once("close", code => {
+    const child = spawn(command[0], command[1], { stdio: "ignore" });
+    child.once("error", reject);
+    child.once("close", (code) => {
       if (code === 0) {
-        resolve()
+        resolve();
       } else {
-        reject(new Error(`Browser command exited with code ${code}`))
+        reject(new Error(`Browser command exited with code ${code}`));
       }
-    })
-  })
-}
+    });
+  });
+};
 
 const defaultCreateLoopbackServer = async ({ expectedState }) => {
-  let resolveCode
-  let rejectCode
+  let resolveCode;
+  let rejectCode;
   const result = new Promise((resolve, reject) => {
-    resolveCode = resolve
-    rejectCode = reject
-  })
+    resolveCode = resolve;
+    rejectCode = reject;
+  });
 
   const server = createServer((req, res) => {
-    const callbackUrl = new URL(req.url, "http://127.0.0.1")
-    const code = callbackUrl.searchParams.get("code")
-    const state = callbackUrl.searchParams.get("state")
+    const callbackUrl = new URL(req.url, "http://127.0.0.1");
+    const code = callbackUrl.searchParams.get("code");
+    const state = callbackUrl.searchParams.get("state");
 
     if (!code || !state) {
-      res.statusCode = 400
-      res.end("Missing code or state")
-      rejectCode(new Error("OAuth callback missing code or state"))
-      return
+      res.statusCode = 400;
+      res.end("Missing code or state");
+      rejectCode(new Error("OAuth callback missing code or state"));
+      return;
     }
 
     if (state !== expectedState) {
-      res.statusCode = 400
-      res.end("State mismatch")
-      rejectCode(new Error("OAuth state validation failed"))
-      return
+      res.statusCode = 400;
+      res.end("State mismatch");
+      rejectCode(new Error("OAuth state validation failed"));
+      return;
     }
 
-    res.statusCode = 200
-    res.end("Authentication complete. You can return to the terminal.")
-    resolveCode({ code, state })
-  })
+    res.statusCode = 200;
+    res.end("Authentication complete. You can return to the terminal.");
+    resolveCode({ code, state });
+  });
 
   await new Promise((resolve, reject) => {
-    server.once("error", reject)
-    server.listen(0, "127.0.0.1", resolve)
-  })
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
 
-  const address = server.address()
+  const address = server.address();
   if (!address || typeof address === "string") {
-    throw new Error("Failed to allocate loopback callback port")
+    throw new Error("Failed to allocate loopback callback port");
   }
 
   return {
@@ -614,34 +628,31 @@ const defaultCreateLoopbackServer = async ({ expectedState }) => {
     waitForCode: () => result,
     close: () =>
       new Promise((resolve, reject) => {
-        server.close(error => {
+        server.close((error) => {
           if (error) {
-            reject(error)
+            reject(error);
           } else {
-            resolve()
+            resolve();
           }
-        })
+        });
       }),
-  }
-}
+  };
+};
 
-const readJson = async response => {
-  const payload = await response.json()
+const readJson = async (response) => {
+  const payload = await response.json();
   if (!response.ok) {
-    throw new Error(payload?.error || payload?.message || `HTTP ${response.status}`)
+    throw new Error(payload?.error || payload?.message || `HTTP ${response.status}`);
   }
 
-  return payload
-}
+  return payload;
+};
 
 const discoverAuthorizationServer = async ({ publishBaseUrl, fetchImpl }) => {
-  const response = await fetchImpl(
-    `${publishBaseUrl}/.well-known/oauth-authorization-server`,
-    {}
-  )
+  const response = await fetchImpl(`${publishBaseUrl}/.well-known/oauth-authorization-server`, {});
 
-  return readJson(response)
-}
+  return readJson(response);
+};
 
 const registerPublicClient = async ({ metadata, redirectUri, publishBaseUrl, fetchImpl }) => {
   const response = await fetchImpl(metadata.registration_endpoint, {
@@ -654,10 +665,10 @@ const registerPublicClient = async ({ metadata, redirectUri, publishBaseUrl, fet
       response_types: ["code"],
       resource: publishBaseUrl,
     }),
-  })
+  });
 
-  return readJson(response)
-}
+  return readJson(response);
+};
 
 const exchangeCodeForToken = async ({
   metadata,
@@ -675,16 +686,16 @@ const exchangeCodeForToken = async ({
     code_verifier: codeVerifier,
     redirect_uri: redirectUri,
     resource: publishBaseUrl,
-  })
+  });
 
   const response = await fetchImpl(metadata.token_endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
-  })
+  });
 
-  return readJson(response)
-}
+  return readJson(response);
+};
 
 const refreshTokenBundle = async ({
   metadata,
@@ -698,18 +709,25 @@ const refreshTokenBundle = async ({
     refresh_token: refreshToken,
     client_id: clientId,
     resource: publishBaseUrl,
-  })
+  });
 
   const response = await fetchImpl(metadata.token_endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: body.toString(),
-  })
+  });
 
-  return readJson(response)
-}
+  return readJson(response);
+};
 
-const buildTokenBundle = ({ tokenResponse, metadata, clientId, publishBaseUrl, now, previous }) => ({
+const buildTokenBundle = ({
+  tokenResponse,
+  metadata,
+  clientId,
+  publishBaseUrl,
+  now,
+  previous,
+}) => ({
   accessToken: tokenResponse.access_token,
   refreshToken: tokenResponse.refresh_token ?? previous?.refreshToken ?? null,
   expiresAt: now + tokenResponse.expires_in * 1000,
@@ -719,48 +737,47 @@ const buildTokenBundle = ({ tokenResponse, metadata, clientId, publishBaseUrl, n
   clientId,
   resource: publishBaseUrl,
   publishBaseUrl,
-})
+});
 
 const fetchCurrentIdentity = async ({ publishBaseUrl, accessToken, fetchImpl }) => {
   const response = await fetchImpl(`${publishBaseUrl}/v1/me`, {
     method: "GET",
     headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  });
 
-  return readJson(response)
-}
+  return readJson(response);
+};
 
 export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
-  const fetchImpl = deps.fetch ?? globalThis.fetch
-  const now = deps.now ?? Date.now
-  const platform = deps.platform ?? process.platform
+  const fetchImpl = deps.fetch ?? globalThis.fetch;
+  const now = deps.now ?? Date.now;
+  const platform = deps.platform ?? process.platform;
   const homeDir =
-    deps.homeDir ??
-    (platform === "win32" ? process.env.APPDATA ?? homedir() : homedir())
-  const readCache = deps.readCache ?? defaultReadCache
-  const writeCache = deps.writeCache ?? defaultWriteCache
-  const openBrowser = deps.openBrowser ?? defaultOpenBrowser
-  const createLoopbackServer = deps.createLoopbackServer ?? defaultCreateLoopbackServer
-  const randomString = deps.randomString ?? defaultRandomString
-  const makeCodeVerifier = deps.codeVerifier ?? defaultCodeVerifier
-  const createCodeChallenge = deps.codeChallengeFromVerifier ?? codeChallengeFromVerifier
+    deps.homeDir ?? (platform === "win32" ? (process.env.APPDATA ?? homedir()) : homedir());
+  const readCache = deps.readCache ?? defaultReadCache;
+  const writeCache = deps.writeCache ?? defaultWriteCache;
+  const openBrowser = deps.openBrowser ?? defaultOpenBrowser;
+  const createLoopbackServer = deps.createLoopbackServer ?? defaultCreateLoopbackServer;
+  const randomString = deps.randomString ?? defaultRandomString;
+  const makeCodeVerifier = deps.codeVerifier ?? defaultCodeVerifier;
+  const createCodeChallenge = deps.codeChallengeFromVerifier ?? codeChallengeFromVerifier;
 
   if (!fetchImpl) {
-    throw new Error("OAuth helper requires a fetch implementation")
+    throw new Error("OAuth helper requires a fetch implementation");
   }
 
-  const hostname = new URL(publishBaseUrl).hostname
-  const cachePath = cacheFilePathFor({ platform, homeDir, hostname })
-  const metadata = await discoverAuthorizationServer({ publishBaseUrl, fetchImpl })
-  const cachedBundle = await readCache(cachePath)
-  const strategy = selectAuthStrategy(cachedBundle, now())
+  const hostname = new URL(publishBaseUrl).hostname;
+  const cachePath = cacheFilePathFor({ platform, homeDir, hostname });
+  const metadata = await discoverAuthorizationServer({ publishBaseUrl, fetchImpl });
+  const cachedBundle = await readCache(cachePath);
+  const strategy = selectAuthStrategy(cachedBundle, now());
 
   if (strategy === "reuse") {
     return fetchCurrentIdentity({
       publishBaseUrl,
       accessToken: cachedBundle.accessToken,
       fetchImpl,
-    })
+    });
   }
 
   if (strategy === "refresh") {
@@ -770,7 +787,7 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
       refreshToken: cachedBundle.refreshToken,
       publishBaseUrl,
       fetchImpl,
-    })
+    });
     const nextBundle = buildTokenBundle({
       tokenResponse: refreshed,
       metadata,
@@ -778,19 +795,19 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
       publishBaseUrl,
       now: now(),
       previous: cachedBundle,
-    })
-    await writeCache(cachePath, nextBundle)
+    });
+    await writeCache(cachePath, nextBundle);
     return fetchCurrentIdentity({
       publishBaseUrl,
       accessToken: nextBundle.accessToken,
       fetchImpl,
-    })
+    });
   }
 
-  const expectedState = randomString()
-  const codeVerifier = makeCodeVerifier()
-  const codeChallenge = createCodeChallenge(codeVerifier)
-  const loopback = await createLoopbackServer({ expectedState })
+  const expectedState = randomString();
+  const codeVerifier = makeCodeVerifier();
+  const codeChallenge = createCodeChallenge(codeVerifier);
+  const loopback = await createLoopbackServer({ expectedState });
 
   try {
     const client = await registerPublicClient({
@@ -798,20 +815,20 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
       redirectUri: loopback.redirectUri,
       publishBaseUrl,
       fetchImpl,
-    })
+    });
 
-    const authorizationUrl = new URL(metadata.authorization_endpoint)
-    authorizationUrl.searchParams.set("client_id", client.client_id)
-    authorizationUrl.searchParams.set("redirect_uri", loopback.redirectUri)
-    authorizationUrl.searchParams.set("response_type", "code")
-    authorizationUrl.searchParams.set("resource", publishBaseUrl)
-    authorizationUrl.searchParams.set("code_challenge", codeChallenge)
-    authorizationUrl.searchParams.set("code_challenge_method", "S256")
-    authorizationUrl.searchParams.set("state", expectedState)
+    const authorizationUrl = new URL(metadata.authorization_endpoint);
+    authorizationUrl.searchParams.set("client_id", client.client_id);
+    authorizationUrl.searchParams.set("redirect_uri", loopback.redirectUri);
+    authorizationUrl.searchParams.set("response_type", "code");
+    authorizationUrl.searchParams.set("resource", publishBaseUrl);
+    authorizationUrl.searchParams.set("code_challenge", codeChallenge);
+    authorizationUrl.searchParams.set("code_challenge_method", "S256");
+    authorizationUrl.searchParams.set("state", expectedState);
 
-    await openBrowser(authorizationUrl.toString())
+    await openBrowser(authorizationUrl.toString());
 
-    const { code } = await loopback.waitForCode()
+    const { code } = await loopback.waitForCode();
     const tokenResponse = await exchangeCodeForToken({
       metadata,
       clientId: client.client_id,
@@ -820,7 +837,7 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
       codeVerifier,
       publishBaseUrl,
       fetchImpl,
-    })
+    });
 
     const nextBundle = buildTokenBundle({
       tokenResponse,
@@ -829,19 +846,19 @@ export const runPublishAuth = async ({ publishBaseUrl, deps = {} }) => {
       publishBaseUrl,
       now: now(),
       previous: null,
-    })
+    });
 
-    await writeCache(cachePath, nextBundle)
+    await writeCache(cachePath, nextBundle);
 
     return fetchCurrentIdentity({
       publishBaseUrl,
       accessToken: nextBundle.accessToken,
       fetchImpl,
-    })
+    });
   } finally {
-    await loopback.close()
+    await loopback.close();
   }
-}
+};
 ```
 
 Also update the `test` script in `package.json`:
@@ -871,6 +888,7 @@ git commit -m "feat: implement publish oauth helper"
 ### Task 3: ReScript CLI Integration
 
 **Files:**
+
 - Create: `src/core/PublishAuthTypes.res`
 - Create: `src/bindings/PublishOAuth.res`
 - Modify: `src/bindings/NodeProcess.res`
@@ -965,53 +983,56 @@ let () = {
 Update `test/Bin_test.mjs` so it still covers the wrapper without invoking a real OAuth run:
 
 ```js
-import { existsSync, readFileSync, statSync } from "node:fs"
-import { fileURLToPath } from "node:url"
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 
 const assert = (condition, label) => {
   if (!condition) {
-    throw new Error(`Assertion failed: ${label}`)
+    throw new Error(`Assertion failed: ${label}`);
   }
-}
+};
 
-const packageJsonPath = new URL("../package.json", import.meta.url)
-const wrapperUrl = new URL("../bin/rescript-bindings.mjs", import.meta.url)
-const wrapperPath = fileURLToPath(wrapperUrl)
-const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"))
+const packageJsonPath = new URL("../package.json", import.meta.url);
+const wrapperUrl = new URL("../bin/rescript-bindings.mjs", import.meta.url);
+const wrapperPath = fileURLToPath(wrapperUrl);
+const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8"));
 
 assert(
   packageJson.bin?.["rescript-bindings"] === "./bin/rescript-bindings.mjs",
-  "package.json points the CLI bin at the wrapper"
-)
+  "package.json points the CLI bin at the wrapper",
+);
 
-assert(existsSync(wrapperPath), "CLI wrapper exists")
+assert(existsSync(wrapperPath), "CLI wrapper exists");
 
-const wrapperSource = readFileSync(wrapperPath, "utf8")
-assert(wrapperSource.startsWith("#!/usr/bin/env node\n"), "CLI wrapper starts with a Node shebang")
+const wrapperSource = readFileSync(wrapperPath, "utf8");
+assert(wrapperSource.startsWith("#!/usr/bin/env node\n"), "CLI wrapper starts with a Node shebang");
 
-const wrapperMode = statSync(wrapperPath).mode
-assert((wrapperMode & 0o111) !== 0, "CLI wrapper is executable")
+const wrapperMode = statSync(wrapperPath).mode;
+assert((wrapperMode & 0o111) !== 0, "CLI wrapper is executable");
 
-const originalArgv = process.argv
-const originalLog = console.log
-const loggedLines = []
+const originalArgv = process.argv;
+const originalLog = console.log;
+const loggedLines = [];
 
 console.log = (...args) => {
-  loggedLines.push(args.join(" "))
-}
+  loggedLines.push(args.join(" "));
+};
 
-process.argv = [process.execPath, wrapperPath, "binding", "add", "is-even"]
+process.argv = [process.execPath, wrapperPath, "binding", "add", "is-even"];
 
 try {
-  await import(`${wrapperUrl.href}?bin-test`)
+  await import(`${wrapperUrl.href}?bin-test`);
 } finally {
-  process.argv = originalArgv
-  console.log = originalLog
+  process.argv = originalArgv;
+  console.log = originalLog;
 }
 
-assert(loggedLines.includes("Install package is-even"), "CLI wrapper launches the compiled add command")
+assert(
+  loggedLines.includes("Install package is-even"),
+  "CLI wrapper launches the compiled add command",
+);
 
-console.log("Bin_test.mjs passed")
+console.log("Bin_test.mjs passed");
 ```
 
 - [ ] **Step 2: Run the CLI tests to verify they fail**
@@ -1166,6 +1187,7 @@ git commit -m "feat: wire publish oauth into cli"
 ### Task 4: Worker `/v1/me` Endpoint And Test Suite Wiring
 
 **Files:**
+
 - Modify: `src/Worker.res`
 - Create: `src/Worker.mjs`
 - Create: `test/Worker_test.mjs`
@@ -1174,21 +1196,21 @@ git commit -m "feat: wire publish oauth into cli"
 - [ ] **Step 1: Write the failing Worker endpoint test**
 
 ```js
-import worker from "../src/Worker.mjs"
+import worker from "../src/Worker.mjs";
 
 const assert = (condition, label) => {
   if (!condition) {
-    throw new Error(`Assertion failed: ${label}`)
+    throw new Error(`Assertion failed: ${label}`);
   }
-}
+};
 
-const encodeSegment = value => Buffer.from(JSON.stringify(value)).toString("base64url")
+const encodeSegment = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
 
-const makeJwt = payload =>
-  `${encodeSegment({ alg: "none", typ: "JWT" })}.${encodeSegment(payload)}.signature`
+const makeJwt = (payload) =>
+  `${encodeSegment({ alg: "none", typ: "JWT" })}.${encodeSegment(payload)}.signature`;
 
-const unauthorized = await worker.fetch(new Request("https://publish.example.com/v1/me"), {}, {})
-assert(unauthorized.status === 401, "missing access identity is rejected")
+const unauthorized = await worker.fetch(new Request("https://publish.example.com/v1/me"), {}, {});
+assert(unauthorized.status === 401, "missing access identity is rejected");
 
 const authorized = await worker.fetch(
   new Request("https://publish.example.com/v1/me", {
@@ -1197,17 +1219,17 @@ const authorized = await worker.fetch(
     },
   }),
   {},
-  {}
-)
+  {},
+);
 
-assert(authorized.status === 200, "access jwt allows /v1/me")
+assert(authorized.status === 200, "access jwt allows /v1/me");
 
-const body = await authorized.json()
-assert(body.email === "dev@example.com", "worker returns the email claim")
-assert(body.githubLogin === null, "worker leaves github login null in this slice")
-assert(body.access?.authenticated === true, "worker marks response as authenticated")
+const body = await authorized.json();
+assert(body.email === "dev@example.com", "worker returns the email claim");
+assert(body.githubLogin === null, "worker leaves github login null in this slice");
+assert(body.access?.authenticated === true, "worker marks response as authenticated");
 
-console.log("Worker_test.mjs passed")
+console.log("Worker_test.mjs passed");
 ```
 
 - [ ] **Step 2: Run the Worker test to verify it fails**
@@ -1323,63 +1345,63 @@ let validatePublishInput = (input: publishInput): array<normalizedFileEntry> => 
 Create `src/Worker.mjs`:
 
 ```js
-import { isProtectedRoute, routeFrom } from "./Worker.res.mjs"
+import { isProtectedRoute, routeFrom } from "./Worker.res.mjs";
 
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json; charset=utf-8" },
-  })
+  });
 
-const decodeJwtPayload = assertion => {
-  const parts = assertion.split(".")
+const decodeJwtPayload = (assertion) => {
+  const parts = assertion.split(".");
   if (parts.length < 2) {
-    throw new Error("Invalid Access JWT")
+    throw new Error("Invalid Access JWT");
   }
 
-  return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"))
-}
+  return JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+};
 
-const currentIdentity = request => {
-  const assertion = request.headers.get("Cf-Access-Jwt-Assertion")
+const currentIdentity = (request) => {
+  const assertion = request.headers.get("Cf-Access-Jwt-Assertion");
   if (!assertion) {
-    return null
+    return null;
   }
 
-  const payload = decodeJwtPayload(assertion)
+  const payload = decodeJwtPayload(assertion);
 
   return {
     githubLogin: null,
     displayName: null,
     email: payload.email ?? null,
     access: { authenticated: true },
-  }
-}
+  };
+};
 
 export default {
   async fetch(request) {
-    const url = new URL(request.url)
-    const route = routeFrom(request.method, url.pathname)
+    const url = new URL(request.url);
+    const route = routeFrom(request.method, url.pathname);
 
     if (isProtectedRoute(route) && !request.headers.get("Cf-Access-Jwt-Assertion")) {
-      return json({ error: "Missing Access identity" }, 401)
+      return json({ error: "Missing Access identity" }, 401);
     }
 
     switch (route) {
       case "Me": {
-        const identity = currentIdentity(request)
+        const identity = currentIdentity(request);
         if (!identity) {
-          return json({ error: "Missing Access identity" }, 401)
+          return json({ error: "Missing Access identity" }, 401);
         }
 
-        return json(identity)
+        return json(identity);
       }
 
       default:
-        return json({ error: "Not found" }, 404)
+        return json({ error: "Not found" }, 404);
     }
   },
-}
+};
 ```
 
 Update `package.json` so the full test suite includes the Worker test:
@@ -1398,6 +1420,7 @@ Update `package.json` so the full test suite includes the Worker test:
 
 Run: `npm test`
 Expected:
+
 - `Validation_test.res passed`
 - `Cli_test.res passed`
 - `PublishOAuth_test.mjs passed`

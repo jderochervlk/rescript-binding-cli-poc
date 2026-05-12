@@ -1,10 +1,13 @@
 {
-    "name": "rescript-binding-cli-poc",
-    "private": true,
-    "packageManager": "pnpm@10.32.0",
-    "scripts": {
-        "build": "pnpm --filter @jvlk/rescript-bindings build && pnpm --filter @jvlk/rescript-bindings-web build",
-        "clean": "pnpm --filter @jvlk/rescript-bindings clean && pnpm --filter @jvlk/rescript-bindings-web clean",
-        "test": "pnpm --filter @jvlk/rescript-bindings test && pnpm --filter @jvlk/rescript-bindings-web test"
-    }
+  "name": "rescript-binding-cli-poc",
+  "private": true,
+  "scripts": {
+    "build": "pnpm --filter @jvlk/rescript-bindings build && pnpm --filter @jvlk/rescript-bindings-web build",
+    "clean": "pnpm --filter @jvlk/rescript-bindings clean && pnpm --filter @jvlk/rescript-bindings-web clean",
+    "test": "pnpm --filter @jvlk/rescript-bindings test && pnpm --filter @jvlk/rescript-bindings-web test"
+  },
+  "dependencies": {
+    "oxfmt": "^0.49.0"
+  },
+  "packageManager": "pnpm@10.32.0"
 }

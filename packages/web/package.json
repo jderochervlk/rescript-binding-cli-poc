@@ -13,6 +13,7 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "@rescript/runtime": "^12.2.0",
     "xote": "^6.2.0"
   },
   "devDependencies": {
