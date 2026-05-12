@@ -153,7 +153,7 @@ let detailPage = (
       el("p", ~children=[
         View.text("Library " ++ selected.peerPackageRange ++ " / ReScript " ++ selected.rescriptRange),
       ], ()),
-      el("p", ~children=[View.text(selected.description->Belt.Option.getWithDefault(""))], ()),
+      el("p", ~children=[View.text(selected.description->Nullable.getOr(""))], ()),
       el("pre", ~children=[
         el("code", ~children=[View.text(sourceForFiles(selected.files))], ()),
       ], ()),

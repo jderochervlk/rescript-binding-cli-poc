@@ -8,7 +8,7 @@ type releaseSummary = {
   variantSlug: string,
   peerPackageRange: string,
   rescriptRange: string,
-  description: option<string>,
+  description: Nullable.t<string>,
   createdAt: string,
 }
 
@@ -36,7 +36,7 @@ type detailRelease = {
   variantSlug: string,
   peerPackageRange: string,
   rescriptRange: string,
-  description: option<string>,
+  description: Nullable.t<string>,
   createdAt: string,
   files: array<file>,
 }
