@@ -5,6 +5,10 @@ compatibility_date = "2026-05-10"
 [vars]
 REGISTRY_API_BASE = "https://rescript-binding-registry.josh-401.workers.dev/api"
 
+[[services]]
+binding = "REGISTRY_API"
+service = "rescript-binding-registry"
+
 [observability.logs]
 enabled = true
 invocation_logs = true

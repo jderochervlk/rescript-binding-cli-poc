@@ -5,15 +5,19 @@ type env
 type ctx
 type url
 type searchParams
+type service
 
 type fetcher = RegistryClient.fetcher
 
 @new external makeUrl: string => url = "URL"
+@new external makeServiceRequest: string => request = "Request"
 @get external requestUrl: request => string = "url"
 @get external urlPathname: url => string = "pathname"
+@get external urlSearch: url => string = "search"
 @get external urlSearchParams: url => searchParams = "searchParams"
 @return(nullable) @send external searchParamGet: (searchParams, string) => option<string> = "get"
 @get external registryApiBase: env => option<string> = "REGISTRY_API_BASE"
+@send external serviceFetch: (service, request) => promise<response> = "fetch"
 @new external makeResponseExternal: (string, responseInit) => response = "Response"
 @obj external responseInitExternal: (~status: int, ~headers: array<array<string>>, unit) => responseInit = ""
 @val external globalFetch: fetcher = "fetch"
@@ -33,6 +37,29 @@ let html = (~status=200, body) =>
 
 let apiBase = env =>
   env->registryApiBase->Belt.Option.getWithDefault("https://rescript-binding-registry.josh-401.workers.dev/api")
+
+let hasRegistryApiService = env => {
+  let _ = env
+  %raw(`env.REGISTRY_API != null`)
+}
+
+let registryApiService = env => {
+  let _ = env
+  %raw(`env.REGISTRY_API`)
+}
+
+let registryFetcher = env =>
+  if env->hasRegistryApiService {
+    let service = env->registryApiService
+    url => {
+      let serviceUrl = makeUrl(url)
+      service->serviceFetch(makeServiceRequest(
+        "https://registry.internal" ++ serviceUrl->urlPathname ++ serviceUrl->urlSearch,
+      ))
+    }
+  } else {
+    globalFetch
+  }
 
 let getAt = (items: array<'a>, index: int): option<'a> =>
   if index < 0 || index >= items->Array.length {
@@ -132,6 +159,8 @@ let fetchWith = async (~fetcher: fetcher, request, env, _ctx) => {
   }
 }
 
-let fetch = async (request, env, ctx) => await fetchWith(~fetcher=globalFetch, request, env, ctx)
+let workerFetch = async (request, env, ctx) => await fetchWith(~fetcher=registryFetcher(env), request, env, ctx)
 
-%%raw("export default { fetch }")
+let fetch = workerFetch
+
+%%raw("export default { fetch: workerFetch }")

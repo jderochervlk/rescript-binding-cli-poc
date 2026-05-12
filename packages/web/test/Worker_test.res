@@ -9,6 +9,18 @@ type textResponse
 @send external includes: (string, string) => bool = "includes"
 
 let emptyEnv: Worker.env = %raw(`({ REGISTRY_API_BASE: "https://registry.test/api" })`)
+let serviceEnv: Worker.env = %raw(`({
+  REGISTRY_API_BASE: "https://registry.test/api",
+  REGISTRY_API: {
+    fetch: async request => {
+      const url = typeof request === "string" ? request : request.url;
+      if (url === "https://registry.internal/api/v1/bindings/recent") {
+        return new Response('{"entries":[{"packageName":"service-bound","author":"jane","authorDisplayName":"Jane Example","libraryVersions":["^1.0.0"],"rescriptVersions":["^12.0.0"],"latestCreatedAt":"2026-05-06T12:00:00Z","releases":[{"id":"service-1","packageName":"service-bound","variantLabel":"Default","variantSlug":"default","peerPackageRange":"^1.0.0","rescriptRange":"^12.0.0","description":null,"createdAt":"2026-05-06T12:00:00Z"}]}]}', { status: 200, headers: [["content-type", "application/json"]] })
+      }
+      return new Response('{"error":"Unexpected service URL"}', { status: 500, headers: [["content-type", "application/json"]] })
+    }
+  }
+})`)
 let ctx = %raw(`({})`)
 
 let json = (~status=200, body) =>
@@ -57,6 +69,11 @@ let run = async () => {
   recentHtml->assertContains("Library versions", "recent homepage uses approved library header")
   recentHtml->assertContains("@scope/recent", "recent homepage renders API entries")
   recentHtml->assertContains("Jane Example", "recent homepage renders author display name")
+
+  let serviceResponse = await Worker.fetch(makeRequest("https://web.test/"), serviceEnv, ctx)
+  serviceResponse->assertStatus(200, "public fetch uses registry service binding")
+  let serviceHtml = await serviceResponse->responseText
+  serviceHtml->assertContains("service-bound", "service binding renders API entries")
 
   let searchResponse = await Worker.fetchWith(~fetcher=fakeFetcher, makeRequest("https://web.test/?q=react"), emptyEnv, ctx)
   searchResponse->assertStatus(200, "search homepage returns success")
