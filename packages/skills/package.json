@@ -1,7 +1,6 @@
 {
   "name": "@jvlk/rescript-binding-skills",
   "version": "0.1.0",
-  "private": true,
   "description": "Agent skills for creating ReScript bindings.",
   "files": [
     ".claude-plugin",
