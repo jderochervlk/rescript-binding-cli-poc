@@ -119,11 +119,17 @@ let filesByReleaseId = %raw(`({
   ],
 })`)
 
+let observedListLimits: array<int> = %raw(`[]`)
+
 let fakeDb: Worker.env = %raw(`({
   DB: {
     prepare: sql => {
       const statement = {
         all: async () => {
+          if (sql.includes("FROM binding_releases") && sql.includes("LIMIT ?")) {
+            return { results: rows };
+          }
+
           if (sql.includes("FROM binding_releases")) {
             return { results: rows };
           }
@@ -133,6 +139,11 @@ let fakeDb: Worker.env = %raw(`({
           all: async () => {
             if (sql.includes("FROM binding_files")) {
               return { results: filesByReleaseId[params[0]] || [] };
+            }
+
+            if (sql.includes("FROM binding_releases") && sql.includes("LIMIT ?") && typeof params[0] === "number") {
+              observedListLimits.push(params[0]);
+              return { results: rows };
             }
 
             if (sql.includes("FROM binding_releases") && params[0] === "react" && params[1] === "josh") {
@@ -190,6 +201,46 @@ let findRelease = (releases, expectedId) =>
   releases->Array.find(release => release->releaseId == expectedId)->Belt.Option.getExn
 
 let run = async () => {
+  let list = await Worker.fetch(makeRequest(publicApiBaseUrl ++ "/v1/bindings?limit=2"), fakeDb, ctx)
+  TestSupport.assertTrue(responseStatus(list) == 200, "list bindings endpoint returns success")
+  let listBody: jsonBody = await list->responseJson
+  let listEntries = listBody->entries
+  TestSupport.assertTrue(listEntries->Array.length == 3, "list groups all returned releases by package and author")
+  TestSupport.assertTrue(
+    listEntries->Array.some(entry => entry->packageName == "react" && entry->author == "josh"),
+    "list includes grouped react entry",
+  )
+  TestSupport.assertTrue(
+    listEntries->Array.some(entry => entry->packageName == "@rescript/react" && entry->author == "dev"),
+    "list includes scoped package entry",
+  )
+  TestSupport.assertTrue(
+    observedListLimits[0]->Belt.Option.getExn == 2,
+    "list binds canonical integer limit",
+  )
+
+  let alphaLimit = await Worker.fetch(
+    makeRequest(publicApiBaseUrl ++ "/v1/bindings?limit=2abc"),
+    fakeDb,
+    ctx,
+  )
+  TestSupport.assertTrue(responseStatus(alphaLimit) == 200, "list accepts invalid alpha limit request")
+  TestSupport.assertTrue(
+    observedListLimits[1]->Belt.Option.getExn == 50,
+    "list defaults partial numeric alpha limits",
+  )
+
+  let decimalLimit = await Worker.fetch(
+    makeRequest(publicApiBaseUrl ++ "/v1/bindings?limit=2.5"),
+    fakeDb,
+    ctx,
+  )
+  TestSupport.assertTrue(responseStatus(decimalLimit) == 200, "list accepts invalid decimal limit request")
+  TestSupport.assertTrue(
+    observedListLimits[2]->Belt.Option.getExn == 50,
+    "list defaults decimal limits",
+  )
+
   let recent = await Worker.fetch(makeRequest(publicApiBaseUrl ++ "/v1/bindings/recent"), fakeDb, ctx)
   TestSupport.assertTrue(responseStatus(recent) == 200, "recent bindings endpoint returns success")
   let recentBody: jsonBody = await recent->responseJson

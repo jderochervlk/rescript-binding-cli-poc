@@ -203,6 +203,7 @@ external responseInit: (~status: int, ~headers: array<array<string>>, unit) => r
 @get external envDb: env => option<db> = "DB"
 @send external prepare: (db, string) => statement = "prepare"
 @send external bind1: (statement, string) => boundStatement = "bind"
+@send external bindInt1: (statement, int) => boundStatement = "bind"
 @send external bind2: (statement, string, string) => boundStatement = "bind"
 @send external bind3: (statement, string, string, string) => boundStatement = "bind"
 @send
@@ -309,6 +310,7 @@ let sortByCompatibility = (items: array<releaseWithCompatibility>): array<
 type route =
   | ListPackageReleases(string)
   | GetRelease(string)
+  | ListBindings
   | RecentBindings
   | SearchBindings
   | GetBindingAuthorDetail(string, string)
@@ -318,7 +320,9 @@ type route =
   | NotFound
 
 let routeFrom = (method_: string, pathname: string): route => {
-  if method_ == "GET" && pathname == "/api/v1/bindings/recent" {
+  if method_ == "GET" && pathname == "/api/v1/bindings" {
+    ListBindings
+  } else if method_ == "GET" && pathname == "/api/v1/bindings/recent" {
     RecentBindings
   } else if method_ == "GET" && pathname == "/api/v1/bindings/search" {
     SearchBindings
@@ -359,6 +363,7 @@ let isProtectedRoute = route =>
   | Me | Publish | AdminPublishers => true
   | ListPackageReleases(_)
   | GetRelease(_)
+  | ListBindings
   | RecentBindings
   | SearchBindings
   | GetBindingAuthorDetail(_, _)
@@ -635,6 +640,22 @@ let escapeLikePattern = value =>
   ->replaceAll("%", "\\%")
   ->replaceAll("_", "\\_")
 
+let defaultListLimit = 50
+let maxListLimit = 200
+
+let listLimitFrom = url => {
+  switch url->urlSearchParams->searchParamGet("limit") {
+  | None => defaultListLimit
+  | Some(rawLimit) =>
+    let parsed: int = %raw(`Number.parseInt(rawLimit, 10)`)
+    if parsed > 0 && parsed <= maxListLimit && stringify(parsed) == rawLimit {
+      parsed
+    } else {
+      defaultListLimit
+    }
+  }
+}
+
 let requireDb = env =>
   switch env->envDb {
   | Some(db) => Ok(db)
@@ -748,6 +769,33 @@ let handleGetRelease = async (~env, ~releaseId) =>
     } catch {
     | Failure(message) => badRequest(message)
     }
+  }
+
+let handleListBindings = async (~env, ~url) =>
+  switch requireDb(env) {
+  | Error(response) => response
+  | Ok(db) =>
+    let limit = listLimitFrom(url)
+    let result: queryResult<releaseRow> = await db
+    ->prepare(`SELECT
+      id,
+      package_name,
+      variant_label,
+      variant_slug,
+      publisher_login,
+      publisher_display_name,
+      peer_package_range,
+      rescript_range,
+      description,
+      created_at
+    FROM binding_releases
+    WHERE status = 'published'
+    ORDER BY created_at DESC
+    LIMIT ?`)
+    ->bindInt1(limit)
+    ->all
+
+    json({"entries": groupReleaseRows(result.results)})
   }
 
 let handleRecentBindings = async (~env) =>
@@ -1132,6 +1180,7 @@ let fetch = async (request, env, _ctx) => {
     switch route {
     | ListPackageReleases(packageName) => await handleListPackageReleases(~env, ~packageName, ~url)
     | GetRelease(releaseId) => await handleGetRelease(~env, ~releaseId)
+    | ListBindings => await handleListBindings(~env, ~url)
     | RecentBindings => await handleRecentBindings(~env)
     | SearchBindings => await handleSearchBindings(~env, ~url)
     | GetBindingAuthorDetail(packageName, author) =>
