@@ -4,3 +4,4 @@ lib
 .worktrees
 *.res.mjs
 .env
+packages/cli/bin/index.mjs
