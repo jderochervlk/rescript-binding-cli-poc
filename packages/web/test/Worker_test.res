@@ -64,6 +64,9 @@ let run = async () => {
   let recentHtml = await recentResponse->responseText
   recentHtml->assertContains("<!DOCTYPE html>", "recent homepage renders a document")
   recentHtml->assertContains("picocss", "recent homepage includes Pico CDN")
+  recentHtml->assertContains("highlight.js", "recent homepage includes Highlight.js CDN")
+  recentHtml->assertContains("highlightjs-rescript", "recent homepage includes ReScript grammar CDN")
+  recentHtml->assertContains("hljs.highlightAll()", "recent homepage initializes Highlight.js")
   recentHtml->assertContains("Recently updated", "recent homepage uses approved heading")
   recentHtml->assertContains("Package name", "recent homepage uses approved table header")
   recentHtml->assertContains("Library versions", "recent homepage uses approved library header")
@@ -90,6 +93,7 @@ let run = async () => {
   detailHtml->assertContains("?release=detail-2", "detail page links tabs by release id")
   detailHtml->assertContains("/* React.res */", "detail page renders file separator")
   detailHtml->assertContains("/* ReactDOM.res */", "detail page combines files in one source block")
+  detailHtml->assertContains("class=\"language-rescript\"", "detail page marks binding source as ReScript")
   detailHtml->assertContains("&lt;script&gt;", "detail page escapes source code")
 
   let selectedResponse = await Worker.fetchWith(~fetcher=fakeFetcher, makeRequest("https://web.test/packages/react/authors/jane?release=detail-2"), emptyEnv, ctx)

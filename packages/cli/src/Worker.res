@@ -256,6 +256,7 @@ external bind13: (
 @get external identityGithubLogin: accessIdentity => option<string> = "githubLogin"
 @get external identityEmail: accessIdentity => option<string> = "email"
 @get external identityDisplayName: accessIdentity => option<string> = "displayName"
+@scope("Number") @val external parseIntWithRadix: (string, int) => int = "parseInt"
 
 let nullableToOption = _value => %raw("_value == null ? undefined : _value")
 let first = async statement => nullableToOption(await firstRaw(statement))
@@ -647,7 +648,7 @@ let listLimitFrom = url => {
   switch url->urlSearchParams->searchParamGet("limit") {
   | None => defaultListLimit
   | Some(rawLimit) =>
-    let parsed: int = %raw(`Number.parseInt(rawLimit, 10)`)
+    let parsed = parseIntWithRadix(rawLimit, 10)
     if parsed > 0 && parsed <= maxListLimit && stringify(parsed) == rawLimit {
       parsed
     } else {

@@ -29,6 +29,9 @@
 
 Do not commit during plan execution unless the user explicitly asks for commits.
 
+Do not introduce new raw JS escape hatches in production code or tests. Use typed
+externals and small ReScript helpers at runtime boundaries instead.
+
 ---
 
 ### Task 1: Worker List Endpoint
@@ -88,6 +91,7 @@ In `packages/cli/src/Worker.res`, add an integer D1 bind external near the exist
 
 ```rescript
 @send external bindInt1: (statement, int) => boundStatement = "bind"
+@scope("Number") @val external parseIntWithRadix: (string, int) => int = "parseInt"
 ```
 
 Add `ListBindings` to the `route` variant:
@@ -139,8 +143,8 @@ let listLimitFrom = url => {
   switch url->urlSearchParams->searchParamGet("limit") {
   | None => defaultListLimit
   | Some(rawLimit) =>
-    let parsed: int = %raw(`Number.parseInt(rawLimit, 10)`)
-    if parsed > 0 && parsed <= maxListLimit {
+    let parsed = parseIntWithRadix(rawLimit, 10)
+    if parsed > 0 && parsed <= maxListLimit && parsed->Int.toString == rawLimit {
       parsed
     } else {
       defaultListLimit
@@ -606,8 +610,11 @@ external getDeps: (
   unit,
 ) => RegistryGet.deps = ""
 
-let nonTtyInput: RegistryGet.input = %raw(`({ isTTY: false })`)
-let nonTtyOutput: RegistryGet.output = %raw(`({ isTTY: false })`)
+@obj external inputStream: (~isTTY: bool, unit) => RegistryGet.input = ""
+@obj external outputStream: (~isTTY: bool, unit) => RegistryGet.output = ""
+
+let nonTtyInput = inputStream(~isTTY=false, ())
+let nonTtyOutput = outputStream(~isTTY=false, ())
 
 let reactRelease: RegistryAdd.releaseSummary = {
   id: "react-release",
@@ -808,7 +815,7 @@ Create `packages/cli/src/discovery/RegistryGet.res` with these foundations:
 ```rescript
 type input = RegistryAdd.input
 type output = RegistryAdd.output
-type deps
+type deps = RegistryAdd.deps
 type promptOptions = RegistryAdd.promptOptions
 type promptContext
 type selectConfig
@@ -862,7 +869,6 @@ external selectConfig: (
 @val @scope("globalThis") external globalFetch: option<fetchImpl> = "fetch"
 @module("@inquirer/prompts") external select: (selectConfig, promptContext) => promise<RegistryAdd.releaseSummary> = "select"
 @module("node:readline/promises") external createInterface: {. "input": input, "output": output} => readline = "createInterface"
-external asAddDeps: deps => RegistryAdd.deps = "%identity"
 
 let fail = message => throw(makeJsError(message))
 
@@ -996,7 +1002,7 @@ let runGetWithDeps = async (deps: deps): unit => {
           await RegistryAdd.installReleaseIdWithDeps(
             ~releaseId=item.release.id,
             ~folder=None,
-            ~deps=asAddDeps(deps),
+            ~deps,
           )
         | None => ()
         }
@@ -1171,7 +1177,7 @@ let makeProgram = () => {
 Append:
 
 ```rescript
-let defaultFetch = url => WebFetch.fetch(url, %raw(`undefined`))
+@val external defaultFetch: string => promise<WebFetch.response> = "fetch"
 
 let runList = async limit => {
   let entries = await listEntries(~fetchImpl=defaultFetch, ~apiBaseUrl=registryApiBaseUrl, ~limit)

@@ -1,4 +1,12 @@
 let picoCdn = "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+let highlightLightCdn =
+  "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github.min.css"
+let highlightDarkCdn =
+  "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css"
+let highlightJsCdn =
+  "https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/es/highlight.min.js"
+let highlightRescriptCdn =
+  "https://unpkg.com/highlightjs-rescript@0.2.2/dist/rescript.es.min.js"
 
 @val external encodeURIComponent: string => string = "encodeURIComponent"
 
@@ -155,7 +163,12 @@ let detailPage = (
       ], ()),
       el("p", ~children=[View.text(selected.description->Nullable.getOr(""))], ()),
       el("pre", ~children=[
-        el("code", ~children=[View.text(sourceForFiles(selected.files))], ()),
+        el(
+          "code",
+          ~attrs=[attr("class", "language-rescript")],
+          ~children=[View.text(sourceForFiles(selected.files))],
+          (),
+        ),
       ], ()),
     ], ())
   }
@@ -168,7 +181,16 @@ let messagePage = (~title, ~message) => () =>
 
 let document = (~title: string, body: unit => View.node) =>
   SSR.renderDocument(
-    ~head=`<title>${SSR.Html.escape(title)}</title><meta name="color-scheme" content="light dark" />`,
+    ~head=`<title>${SSR.Html.escape(title)}</title><meta name="color-scheme" content="light dark" />
+    <link rel="stylesheet" href="${highlightLightCdn}" />
+    <link rel="stylesheet" href="${highlightDarkCdn}" media="(prefers-color-scheme: dark)" />
+    <script type="module">
+      import hljs from "${highlightJsCdn}";
+      import rescript from "${highlightRescriptCdn}";
+
+      hljs.registerLanguage("rescript", rescript);
+      hljs.highlightAll();
+    </script>`,
     ~styles=[picoCdn],
     body,
   )
