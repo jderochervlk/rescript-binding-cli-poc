@@ -1,8 +1,15 @@
 let run = async (): unit => {
   switch Cli.parse(NodeProcess.argv) {
-  | Some(("add", packageName, folder)) => await Cli.runAdd(~packageName, ~folder)
-  | Some(("publish", _, _)) => await Cli.runPublish()
-  | _ => Cli.usage()
+  | Some(command) =>
+    switch command {
+    | List => await Cli.runList()
+    | Recent => await Cli.runRecent()
+    | Search(query) => await Cli.runSearch(~query)
+    | Get(packageName, author) => await Cli.runGet(~packageName, ~author)
+    | Add(packageName, folder) => await Cli.runAdd(~packageName, ~folder)
+    | Publish => await Cli.runPublish()
+    }
+  | None => Cli.usage()
   }
 }
 

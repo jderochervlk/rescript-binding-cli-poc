@@ -110,6 +110,9 @@ let run = async () => {
     "bundled CLI help does not fail",
   )
   TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("Commands:"), "bundled CLI help prints command list")
+  TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("recent"), "bundled CLI help includes recent command")
+  TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("search"), "bundled CLI help includes search command")
+  TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("get"), "bundled CLI help includes get command")
 
   let addHelp = await importBinWithArgs(["add", "--help"], "bin-test-add-help", wrapperPath, wrapperHref)
   TestSupport.assertTrue(addHelp->runExitCode == None || addHelp->runExitCode == Some(0), "add help exits successfully")
@@ -118,6 +121,33 @@ let run = async () => {
     "add help shows optional package argument",
   )
   TestSupport.assertTrue(addHelp->runStdout->TestSupport.includes("--folder <path>"), "add help documents folder override")
+
+  let recentHelp = await importBinWithArgs(["recent", "--help"], "bin-test-recent-help", wrapperPath, wrapperHref)
+  TestSupport.assertTrue(
+    recentHelp->runExitCode == None || recentHelp->runExitCode == Some(0),
+    "recent help exits successfully",
+  )
+  TestSupport.assertTrue(
+    recentHelp->runStdout->TestSupport.includes("Usage: rescript-bindings recent"),
+    "recent command is registered in bundled CLI",
+  )
+
+  let searchHelp = await importBinWithArgs(["search", "--help"], "bin-test-search-help", wrapperPath, wrapperHref)
+  TestSupport.assertTrue(
+    searchHelp->runExitCode == None || searchHelp->runExitCode == Some(0),
+    "search help exits successfully",
+  )
+  TestSupport.assertTrue(
+    searchHelp->runStdout->TestSupport.includes("Usage: rescript-bindings search [options] <query>"),
+    "search command is registered in bundled CLI",
+  )
+
+  let getHelp = await importBinWithArgs(["get", "--help"], "bin-test-get-help", wrapperPath, wrapperHref)
+  TestSupport.assertTrue(getHelp->runExitCode == None || getHelp->runExitCode == Some(0), "get help exits successfully")
+  TestSupport.assertTrue(
+    getHelp->runStdout->TestSupport.includes("Usage: rescript-bindings get [options] <package> <author>"),
+    "get command is registered in bundled CLI",
+  )
 
   let legacyBinding = await importBinWithArgs(["binding", "publish"], "bin-test-legacy-binding", wrapperPath, wrapperHref)
   TestSupport.assertTrue(

@@ -38,6 +38,43 @@ let addAddCommand = program => {
   ->ignore
 }
 
+let addListCommand = program => {
+  program
+  ->Commander.command("list")
+  ->Commander.description("List recently updated published bindings")
+  ->Commander.actionPublish(async () => await RegistryDiscovery.runList())
+  ->ignore
+}
+
+let addRecentCommand = program => {
+  program
+  ->Commander.command("recent")
+  ->Commander.description("List recently updated published bindings")
+  ->Commander.actionPublish(async () => await RegistryDiscovery.runRecent())
+  ->ignore
+}
+
+let addSearchCommand = program => {
+  program
+  ->Commander.command("search")
+  ->Commander.description("Search published bindings by package name")
+  ->Commander.argument("<query>", "package search query")
+  ->Commander.actionSearch(async query => await RegistryDiscovery.runSearch(query))
+  ->ignore
+}
+
+let addGetCommand = program => {
+  program
+  ->Commander.command("get")
+  ->Commander.description("Show releases and files for a package author")
+  ->Commander.argument("<package>", "JavaScript package name")
+  ->Commander.argument("<author>", "binding author login")
+  ->Commander.actionGet(async (packageName, author) =>
+    await RegistryDiscovery.runGet(~packageName, ~author)
+  )
+  ->ignore
+}
+
 let addPublishCommand = program => {
   program
   ->Commander.command("publish")
@@ -48,6 +85,10 @@ let addPublishCommand = program => {
 
 let makeProgram = () => {
   let program = Commander.make()->configureBaseProgram
+  addListCommand(program)
+  addRecentCommand(program)
+  addSearchCommand(program)
+  addGetCommand(program)
   addAddCommand(program)
   addPublishCommand(program)
   program

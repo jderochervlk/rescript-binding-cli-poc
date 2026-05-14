@@ -21,6 +21,8 @@ type writable
 external actionAdd: (program, (option<string>, addOptions) => promise<unit>) => program = "action"
 
 @send external actionPublish: (program, unit => promise<unit>) => program = "action"
+@send external actionSearch: (program, string => promise<unit>) => program = "action"
+@send external actionGet: (program, (string, string) => promise<unit>) => program = "action"
 
 @get external folder: addOptions => option<string> = "folder"
 
