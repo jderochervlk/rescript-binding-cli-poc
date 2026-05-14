@@ -252,9 +252,9 @@ external bind13: (
 @get_index external byteAt: (uint8Array, int) => int = ""
 @new external makeDate: unit => date = "Date"
 @send external toISOString: date => string = "toISOString"
-@get external identityGithubLogin: accessIdentity => option<string> = "githubLogin"
-@get external identityEmail: accessIdentity => option<string> = "email"
-@get external identityDisplayName: accessIdentity => option<string> = "displayName"
+@return(nullable) @get external identityGithubLogin: accessIdentity => option<string> = "githubLogin"
+@return(nullable) @get external identityEmail: accessIdentity => option<string> = "email"
+@return(nullable) @get external identityDisplayName: accessIdentity => option<string> = "displayName"
 
 let nullableToOption = _value => %raw("_value == null ? undefined : _value")
 let first = async statement => nullableToOption(await firstRaw(statement))
