@@ -145,8 +145,22 @@ let run = async () => {
   let getHelp = await importBinWithArgs(["get", "--help"], "bin-test-get-help", wrapperPath, wrapperHref)
   TestSupport.assertTrue(getHelp->runExitCode == None || getHelp->runExitCode == Some(0), "get help exits successfully")
   TestSupport.assertTrue(
-    getHelp->runStdout->TestSupport.includes("Usage: rescript-bindings get [options] <package> <author>"),
+    getHelp->runStdout->TestSupport.includes("Usage: rescript-bindings get [options] [package] [author]"),
     "get command is registered in bundled CLI",
+  )
+
+  let bareGet = await importBinWithArgs(["get"], "bin-test-bare-get", wrapperPath, wrapperHref)
+  TestSupport.assertTrue(
+    bareGet->runExitCode == None || bareGet->runExitCode == Some(0),
+    "bare get prints help instead of failing",
+  )
+  TestSupport.assertTrue(
+    bareGet->runStdout->TestSupport.includes("Usage: rescript-bindings get [options] [package] [author]"),
+    "bare get shows get usage",
+  )
+  TestSupport.assertTrue(
+    !(bareGet->runStderr->TestSupport.includes("missing required argument")),
+    "bare get does not print a missing argument error",
   )
 
   let legacyBinding = await importBinWithArgs(["binding", "publish"], "bin-test-legacy-binding", wrapperPath, wrapperHref)

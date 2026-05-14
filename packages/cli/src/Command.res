@@ -64,13 +64,19 @@ let addSearchCommand = program => {
 }
 
 let addGetCommand = program => {
-  program
-  ->Commander.command("get")
-  ->Commander.description("Show releases and files for a package author")
-  ->Commander.argument("<package>", "JavaScript package name")
-  ->Commander.argument("<author>", "binding author login")
-  ->Commander.actionGet(async (packageName, author) =>
-    await RegistryDiscovery.runGet(~packageName, ~author)
+  let command =
+    program
+    ->Commander.command("get")
+    ->Commander.description("Show releases and files for a package author")
+    ->Commander.argument("[package]", "JavaScript package name")
+    ->Commander.argument("[author]", "binding author login")
+
+  command
+  ->Commander.actionGetOptional(async (packageName, author) =>
+    switch (packageName, author) {
+    | (Some(packageName), Some(author)) => await RegistryDiscovery.runGet(~packageName, ~author)
+    | _ => command->Commander.help
+    }
   )
   ->ignore
 }

@@ -22,7 +22,10 @@ external actionAdd: (program, (option<string>, addOptions) => promise<unit>) => 
 
 @send external actionPublish: (program, unit => promise<unit>) => program = "action"
 @send external actionSearch: (program, string => promise<unit>) => program = "action"
-@send external actionGet: (program, (string, string) => promise<unit>) => program = "action"
+@send
+external actionGetOptional: (program, (option<string>, option<string>) => promise<unit>) => program =
+  "action"
+@send external help: program => unit = "help"
 
 @get external folder: addOptions => option<string> = "folder"
 
