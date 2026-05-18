@@ -31,6 +31,22 @@ type promptContext
 type url
 type searchParams
 type readDirent
+type publishedRelease = {
+  id: string,
+  packageName: string,
+  variantLabel: string,
+  peerPackageRange: string,
+  rescriptRange: string,
+  createdAt: string,
+}
+type publishedReleaseListPayload = {releases: option<array<publishedRelease>>}
+type deleteReleaseResult = {
+  releaseId: string,
+  packageName: string,
+  peerPackageRange: string,
+  rescriptRange: string,
+  deleted: bool,
+}
 
 type fetchImpl = (string, fetchInit) => promise<WebFetch.response>
 type logImpl = string => unit
@@ -42,6 +58,8 @@ type createLoopbackServerImpl = loopbackInput => promise<loopbackServer>
 type stringFactory = unit => string
 type codeChallengeImpl = string => string
 type promptForPublishInputImpl = promptInput => promise<publishInput>
+type selectDeleteReleaseImpl = (array<publishedRelease>, bool, input, output) => promise<option<publishedRelease>>
+type confirmDeleteReleaseImpl = (publishedRelease, input, output) => promise<bool>
 type completer = string => (array<string>, string)
 
 @module("node:child_process") external defaultSpawn: spawnImpl = "spawn"
@@ -98,6 +116,7 @@ external unsafeJson: WebFetch.jsonValue => 'a = "%identity"
 @obj
 external postFetchInit: (~method: string, ~headers: headersInit, ~body: string, unit) => fetchInit =
   ""
+@obj external deleteFetchInit: (~method: string, ~headers: headersInit, unit) => fetchInit = ""
 @obj external getAuthFetchInit: (~method: string, ~headers: headersInit, unit) => fetchInit = ""
 @obj external readlineOptions: (~input: input, ~output: output, unit) => readlineOptions = ""
 @obj
@@ -154,6 +173,11 @@ external depCodeChallengeFromVerifier: deps => option<codeChallengeImpl> =
 @get
 external depPromptForPublishInput: deps => option<promptForPublishInputImpl> =
   "promptForPublishInput"
+@get
+external depSelectDeleteRelease: deps => option<selectDeleteReleaseImpl> = "selectDeleteRelease"
+@get
+external depConfirmDeleteRelease: deps => option<confirmDeleteReleaseImpl> =
+  "confirmDeleteRelease"
 @get external depCwd: deps => option<string> = "cwd"
 @get external depStdin: deps => option<input> = "stdin"
 @get external depStdout: deps => option<output> = "stdout"
@@ -912,6 +936,74 @@ let confirmPublishWith = async (~stdin, ~stdout) => {
   answer == "y" || answer == "yes"
 }
 
+let releaseDeleteLabel = (release: publishedRelease) =>
+  release.packageName ++
+  " " ++
+  release.peerPackageRange ++
+  " / ReScript " ++ release.rescriptRange ++ " (" ++ release.variantLabel ++ ")"
+
+let defaultSelectDeleteRelease: selectDeleteReleaseImpl = async (releases, includeShowAll, stdin, stdout) => {
+  if stdin->inputIsTty != Some(true) || stdout->outputIsTty != Some(true) {
+    fail("delete requires an interactive terminal")
+  }
+
+  if releases->Array.length == 0 {
+    %raw("null")
+  } else {
+    let showAllValue = "__show_all__"
+    let choices =
+      releases
+      ->Array.map(release => searchChoice(~name=releaseDeleteLabel(release), ~value=release.id, ()))
+      ->(
+        releaseChoices =>
+          if includeShowAll {
+            Array.concat(
+              releaseChoices,
+              [searchChoice(~name="Show all", ~value=showAllValue, ())],
+            )
+          } else {
+            releaseChoices
+          }
+      )
+    let selectedId = await search(
+      searchConfig(
+        ~message="Select a release to delete",
+        ~pageSize=12,
+        ~source=async (term, _) => {
+          let input = term->Belt.Option.getWithDefault("")->trim->toLowerCase
+          if input == "" {
+            choices
+          } else {
+            choices->Array.filter(choice => {
+              let _ = choice
+              %raw(`choice.name.toLowerCase().includes(input)`)
+            })
+          }
+        },
+        (),
+      ),
+      promptContext(~input=stdin, ~output=stdout, ()),
+    )
+
+    if selectedId == showAllValue {
+      %raw("null")
+    } else {
+      releases->Array.find(release => release.id == selectedId)
+    }
+  }
+}
+
+let defaultConfirmDeleteRelease: confirmDeleteReleaseImpl = async (release, stdin, stdout) => {
+  let readline = createInterface(readlineOptions(~input=stdin, ~output=stdout, ()))
+  let answer = (
+    await readline->question(
+      "Delete " ++ releaseDeleteLabel(release) ++ "? This cannot be undone. [y/N]: ",
+    )
+  )->trim->toLowerCase
+  readline->closeReadline
+  answer == "y" || answer == "yes"
+}
+
 let pathCompleter = projectCwd =>
   inputValue => {
     let input = inputValue->trim
@@ -1116,6 +1208,30 @@ let publishRelease = async (~input, ~accessToken, ~fetchImpl) =>
     ),
   )
 
+let listPublishedReleases = async (~accessToken, ~fetchImpl, ~all=false) => {
+  let payload: publishedReleaseListPayload = await readJson(
+    await fetchImpl(
+      publishBaseUrl ++
+      "/v1/releases" ++
+      if all {
+        "?all=true"
+      } else {
+        ""
+      },
+      getAuthFetchInit(~method="GET", ~headers=authHeaders(accessToken), ()),
+    ),
+  )
+  payload.releases->Belt.Option.getWithDefault([])
+}
+
+let deletePublishedRelease = async (~releaseId, ~accessToken, ~fetchImpl) =>
+  await readJson(
+    await fetchImpl(
+      publishBaseUrl ++ "/v1/releases/" ++ encodeURIComponent(releaseId),
+      deleteFetchInit(~method="DELETE", ~headers=authHeaders(accessToken), ()),
+    ),
+  )
+
 let runPublish = async maybeOptions => {
   let deps = depsFromOptions(maybeOptions)
   let fetchImpl = deps->depFetch->Belt.Option.orElse(globalFetch)
@@ -1152,5 +1268,62 @@ let runPublish = async maybeOptions => {
         "s"
       } ++ ")",
     )
+  }
+}
+
+let runDelete = async maybeOptions => {
+  let deps = depsFromOptions(maybeOptions)
+  let fetchImpl = deps->depFetch->Belt.Option.orElse(globalFetch)
+  let fetchImpl = switch fetchImpl {
+  | Some(fetchImpl) => fetchImpl
+  | None => fail("Delete helper requires a fetch implementation")
+  }
+  let promptStdin = deps->depStdin->Belt.Option.getWithDefault(stdin)
+  let promptStdout = deps->depStdout->Belt.Option.getWithDefault(stdout)
+  let selectDeleteRelease =
+    deps->depSelectDeleteRelease->Belt.Option.getWithDefault(defaultSelectDeleteRelease)
+  let confirmDeleteRelease =
+    deps->depConfirmDeleteRelease->Belt.Option.getWithDefault(defaultConfirmDeleteRelease)
+  let session = await runPublishAuthSession(maybeOptions)
+  let recentReleases = await listPublishedReleases(
+    ~accessToken=session.accessToken,
+    ~fetchImpl,
+    ~all=false,
+  )
+
+  if recentReleases->Array.length == 0 {
+    Console.log("No published releases found.")
+  } else {
+    let selectedRecent = await selectDeleteRelease(recentReleases, true, promptStdin, promptStdout)
+    let selected = switch selectedRecent {
+    | Some(release) => Some(release)
+    | None =>
+      let allReleases = await listPublishedReleases(
+        ~accessToken=session.accessToken,
+        ~fetchImpl,
+        ~all=true,
+      )
+      await selectDeleteRelease(allReleases, false, promptStdin, promptStdout)
+    }
+
+    switch selected {
+    | None => Console.log("Delete cancelled.")
+    | Some(release) =>
+      if await confirmDeleteRelease(release, promptStdin, promptStdout) {
+        let result: deleteReleaseResult = await deletePublishedRelease(
+          ~releaseId=release.id,
+          ~accessToken=session.accessToken,
+          ~fetchImpl,
+        )
+        if result.deleted {
+          Console.log("Deleted release: " ++ result.releaseId)
+          Console.log(result.packageName ++ " " ++ result.peerPackageRange)
+        } else {
+          Console.log("Delete failed.")
+        }
+      } else {
+        Console.log("Delete cancelled.")
+      }
+    }
   }
 }

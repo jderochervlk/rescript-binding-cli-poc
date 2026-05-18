@@ -320,7 +320,9 @@ type route =
   | SearchBindings
   | GetBindingAuthorDetail(string, string)
   | Me
+  | MyPublishedReleases
   | Publish
+  | DeletePublishedRelease(string)
   | AdminPublishers
   | NotFound
 
@@ -352,8 +354,16 @@ let routeFrom = (method_: string, pathname: string): route => {
     }
   } else if method_ == "GET" && pathname == "/api/publish/v1/me" {
     Me
+  } else if method_ == "GET" && pathname == "/api/publish/v1/releases" {
+    MyPublishedReleases
   } else if method_ == "POST" && pathname == "/api/publish/v1/releases" {
     Publish
+  } else if method_ == "DELETE" && startsWith(pathname, "/api/publish/v1/releases/") {
+    let parts = split(pathname, "/")
+    switch getAt(parts, 5) {
+    | Some(releaseId) => DeletePublishedRelease(releaseId)
+    | None => NotFound
+    }
   } else if method_ == "POST" && pathname == "/api/publish/v1/admin/publishers" {
     AdminPublishers
   } else {
@@ -363,7 +373,7 @@ let routeFrom = (method_: string, pathname: string): route => {
 
 let isProtectedRoute = route =>
   switch route {
-  | Me | Publish | AdminPublishers => true
+  | Me | MyPublishedReleases | Publish | DeletePublishedRelease(_) | AdminPublishers => true
   | ListPackageReleases(_)
   | GetRelease(_)
   | RecentBindings
@@ -518,6 +528,13 @@ let publisherLabelFrom = identity => {
 
 let publisherDisplayNameFrom = (identity, fallback) => {
   identityDisplayName(identity)->Belt.Option.getWithDefault(fallback)
+}
+
+let publishedReleaseLimitFrom = url => {
+  switch url->urlSearchParams->searchParamGet("all") {
+  | Some("true") => "500"
+  | _ => "10"
+  }
 }
 
 let decodePathValue = value =>
@@ -920,6 +937,111 @@ let handleGetBindingAuthorDetail = async (~env, ~packageName, ~author) =>
     }
   }
 
+let handleMyPublishedReleases = async (~env, ~url, ~identity) =>
+  switch requireDb(env) {
+  | Error(response) => response
+  | Ok(db) =>
+    let publisherLogin = publisherLabelFrom(identity)
+    let limit = publishedReleaseLimitFrom(url)
+    let result: queryResult<releaseRow> = await db
+    ->prepare(`SELECT
+      id,
+      package_name,
+      variant_label,
+      variant_slug,
+      publisher_login,
+      publisher_display_name,
+      peer_package_range,
+      rescript_range,
+      description,
+      created_at
+    FROM binding_releases
+    WHERE publisher_login = ?
+      AND status = 'published'
+    ORDER BY created_at DESC
+    LIMIT ?`)
+    ->bind2(publisherLogin, limit)
+    ->all
+
+    json({"releases": result.results->Array.map(releaseFromRow)})
+  }
+
+let handleDeletePublishedRelease = async (~env, ~releaseId, ~identity) =>
+  switch requireDb(env) {
+  | Error(response) => response
+  | Ok(db) =>
+    try {
+      let decodedReleaseId = decodePathValue(releaseId)
+      let publisherLogin = publisherLabelFrom(identity)
+      let existing: option<releaseRow> = await db
+      ->prepare(`SELECT
+        id,
+        package_name,
+        variant_label,
+        variant_slug,
+        publisher_login,
+        publisher_display_name,
+        peer_package_range,
+        rescript_range,
+        description,
+        created_at
+      FROM binding_releases
+      WHERE id = ?
+        AND publisher_login = ?
+        AND status = 'published'`)
+      ->bind2(decodedReleaseId, publisherLogin)
+      ->first
+
+      switch existing {
+      | None => json(~status=404, {"error": "Release not found"})
+      | Some(row) =>
+        let auditId = globalCrypto->randomUUID
+        let createdAt = makeDate()->toISOString
+        let statements = [
+          db
+          ->prepare(`UPDATE binding_releases
+            SET status = ?
+            WHERE id = ?
+              AND publisher_login = ?
+              AND status = ?`)
+          ->bind4("deleted", decodedReleaseId, publisherLogin, "published"),
+          db
+          ->prepare(`INSERT INTO publish_audit_log (
+            id,
+            release_id,
+            publisher_login,
+            action,
+            created_at,
+            metadata_json
+          ) VALUES (?, ?, ?, ?, ?, ?)`)
+          ->bind6Strings(
+            auditId,
+            decodedReleaseId,
+            publisherLogin,
+            "delete",
+            createdAt,
+            stringify({
+              "packageName": row.package_name,
+              "variantSlug": row.variant_slug,
+              "peerPackageRange": row.peer_package_range,
+              "rescriptRange": row.rescript_range,
+            }),
+          ),
+        ]
+        let _ = await db->batch(statements)
+        json({
+          "releaseId": decodedReleaseId,
+          "packageName": row.package_name,
+          "peerPackageRange": row.peer_package_range,
+          "rescriptRange": row.rescript_range,
+          "deleted": true,
+        })
+      }
+    } catch {
+    | Failure(message) => badRequest(message)
+    }
+  }
+
 let filesWithShaFrom = async (files: array<normalizedFileEntry>) => {
   let filesWithSha: array<fileWithSha> = []
 
@@ -1184,9 +1306,19 @@ let fetch = async (request, env, _ctx) => {
       | Some(identity) => json(identity)
       | None => json(~status=401, {"error": "Missing Access identity"})
       }
+    | MyPublishedReleases =>
+      switch identity {
+      | Some(identity) => await handleMyPublishedReleases(~env, ~url, ~identity)
+      | None => json(~status=401, {"error": "Missing Access identity"})
+      }
     | Publish =>
       switch identity {
       | Some(identity) => await handlePublish(~request, ~env, ~identity)
+      | None => json(~status=401, {"error": "Missing Access identity"})
+      }
+    | DeletePublishedRelease(releaseId) =>
+      switch identity {
+      | Some(identity) => await handleDeletePublishedRelease(~env, ~releaseId, ~identity)
       | None => json(~status=401, {"error": "Missing Access identity"})
       }
     | AdminPublishers | NotFound => json(~status=404, {"error": "Not found"})

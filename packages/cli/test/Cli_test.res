@@ -58,6 +58,12 @@ let () = {
   )
 
   assertParse(
+    ["node", "src/Main.res.mjs", "delete"],
+    Some(Delete),
+    "parse delete command",
+  )
+
+  assertParse(
     ["node", "src/Main.res.mjs", "binding", "install", "pkg"],
     None,
     "reject unknown command",

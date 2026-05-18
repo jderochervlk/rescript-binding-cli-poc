@@ -114,6 +114,7 @@ let run = async () => {
   TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("search"), "bundled CLI help includes search command")
   TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("get"), "bundled CLI help includes get command")
   TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("update"), "bundled CLI help includes update command")
+  TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("delete"), "bundled CLI help includes delete command")
 
   let addHelp = await importBinWithArgs(["add", "--help"], "bin-test-add-help", wrapperPath, wrapperHref)
   TestSupport.assertTrue(addHelp->runExitCode == None || addHelp->runExitCode == Some(0), "add help exits successfully")
@@ -172,6 +173,16 @@ let run = async () => {
   TestSupport.assertTrue(
     updateHelp->runStdout->TestSupport.includes("Usage: rescript-bindings update"),
     "update command is registered in bundled CLI",
+  )
+
+  let deleteHelp = await importBinWithArgs(["delete", "--help"], "bin-test-delete-help", wrapperPath, wrapperHref)
+  TestSupport.assertTrue(
+    deleteHelp->runExitCode == None || deleteHelp->runExitCode == Some(0),
+    "delete help exits successfully",
+  )
+  TestSupport.assertTrue(
+    deleteHelp->runStdout->TestSupport.includes("Usage: rescript-bindings delete"),
+    "delete command is registered in bundled CLI",
   )
 
   let legacyBinding = await importBinWithArgs(["binding", "publish"], "bin-test-legacy-binding", wrapperPath, wrapperHref)

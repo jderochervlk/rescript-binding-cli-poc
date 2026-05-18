@@ -13,8 +13,10 @@ type accessBody
 @get external files: jsonBody => array<releaseFile> = "files"
 @get external id: jsonBody => string = "id"
 @get external releaseId: jsonBody => string = "releaseId"
+@get external packageName: jsonBody => string = "packageName"
 @get external duplicate: jsonBody => bool = "duplicate"
 @get external overwrittenReleaseIds: jsonBody => array<string> = "overwrittenReleaseIds"
+@get external deleted: jsonBody => bool = "deleted"
 @get external email: accessBody => string = "email"
 @get external githubLogin: accessBody => 'value = "githubLogin"
 @get external displayName: accessBody => 'value = "displayName"
@@ -207,6 +209,71 @@ let scopedPackageDb: Worker.env = %raw(`({
     },
   })`)
 
+let deleteUpdateCount = ref(0)
+let myPublishedDb: Worker.env = %raw(`({
+  DB: {
+    prepare: sql => ({
+      bind: (...params) => ({
+        __sql: sql,
+        __params: params,
+        all: async () => {
+          if (sql.includes("FROM binding_releases") && sql.includes("publisher_login = ?")) {
+            return {
+              results: [{
+                id: "my-release",
+                package_name: "is-even",
+                variant_label: "Default",
+                variant_slug: "default",
+                publisher_login: "dev@example.com",
+                publisher_display_name: "Dev",
+                peer_package_range: "^1.0.0",
+                rescript_range: "^12.0.0",
+                description: null,
+                created_at: "2026-05-09T22:00:00.000Z",
+              }],
+            };
+          }
+
+          return { results: [] };
+        },
+        first: async () => {
+          if (
+            sql.includes("FROM binding_releases") &&
+            sql.includes("publisher_login = ?") &&
+            params[0] === "my-release" &&
+            params[1] === "dev@example.com"
+          ) {
+            return {
+              id: "my-release",
+              package_name: "is-even",
+              variant_label: "Default",
+              variant_slug: "default",
+              publisher_login: "dev@example.com",
+              publisher_display_name: "Dev",
+              peer_package_range: "^1.0.0",
+              rescript_range: "^12.0.0",
+              description: null,
+              created_at: "2026-05-09T22:00:00.000Z",
+            };
+          }
+
+          return null;
+        },
+        run: async () => ({ success: true }),
+      }),
+    }),
+    batch: async statements => {
+      deleteUpdateCount.contents = statements.filter(statement =>
+        statement.__sql.includes("UPDATE binding_releases") &&
+        statement.__params[0] === "deleted" &&
+        statement.__params[1] === "my-release" &&
+        statement.__params[2] === "dev@example.com"
+      ).length;
+      return [];
+    },
+  },
+})`)
+
 let run = async () => {
   let oldProtectedPath = await Worker.fetch(makeRequest(publicApiBaseUrl ++ "/v1/me"), emptyEnv, ctx)
   TestSupport.assertTrue(responseStatus(oldProtectedPath) == 404, "publish identity route is not exposed under public api")
@@ -365,6 +432,55 @@ let run = async () => {
     overwrittenUpdateCount.contents == 1,
     "compatible overwrite only marks matching published releases overwritten",
   )
+
+  let myPublished = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/releases",
+      requestInit(~headers=accessHeaders(makeJwt({"email": "dev@example.com"})), ()),
+    ),
+    myPublishedDb,
+    ctx,
+  )
+  TestSupport.assertTrue(responseStatus(myPublished) == 200, "my published releases are listed")
+  let myPublishedBody = await myPublished->responseJson
+  TestSupport.assertTrue(myPublishedBody->releases->Array.length == 1, "my published release list returns rows")
+  TestSupport.assertStringEquals(
+    (myPublishedBody->releases)[0]->Belt.Option.getExn->releaseIdFromRelease,
+    "my-release",
+    "my published release list maps release ids",
+  )
+
+  let deletePublished = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/releases/my-release",
+      requestInit(
+        ~method="DELETE",
+        ~headers=accessHeaders(makeJwt({"email": "dev@example.com"})),
+        (),
+      ),
+    ),
+    myPublishedDb,
+    ctx,
+  )
+  TestSupport.assertTrue(responseStatus(deletePublished) == 200, "owner can delete a published release")
+  let deletePublishedBody = await deletePublished->responseJson
+  TestSupport.assertTrue(deletePublishedBody->deleted, "delete response is marked deleted")
+  TestSupport.assertStringEquals(deletePublishedBody->releaseId, "my-release", "delete response returns release id")
+  TestSupport.assertTrue(deleteUpdateCount.contents == 1, "delete marks the release deleted")
+
+  let deleteMissing = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/releases/missing-release",
+      requestInit(
+        ~method="DELETE",
+        ~headers=accessHeaders(makeJwt({"email": "dev@example.com"})),
+        (),
+      ),
+    ),
+    myPublishedDb,
+    ctx,
+  )
+  TestSupport.assertTrue(responseStatus(deleteMissing) == 404, "delete only affects owned published releases")
 
   let adminUnauthorized = await Worker.fetch(
     makeRequestWithInit(publishApiBaseUrl ++ "/v1/admin/publishers", requestInit(~method="POST", ())),

@@ -8,6 +8,7 @@ let usage = () => {
   Console.log("  rescript-bindings get <package> <author>")
   Console.log("  rescript-bindings add <package> [--folder <path>]")
   Console.log("  rescript-bindings update")
+  Console.log("  rescript-bindings delete")
   Console.log("  rescript-bindings publish")
 }
 
@@ -18,6 +19,7 @@ type command =
   | Get(string, string)
   | Add(string, option<string>)
   | Update
+  | Delete
   | Publish
 
 let defaultInstallFolder = (~cwd: string, ~packageName: string, ~variantSlug: string): string =>
@@ -67,6 +69,8 @@ let runAdd = async (~packageName: string, ~folder: option<string>): unit =>
 
 let runUpdate = async (): unit => await RegistryUpdate.runUpdate()
 
+let runDelete = async (): unit => await PublishOAuth.runDelete(None)
+
 let runList = async (): unit => await RegistryDiscovery.runList()
 
 let runRecent = async (): unit => await RegistryDiscovery.runRecent()
@@ -85,6 +89,7 @@ let parse = (argv: array<string>): option<command> => {
   | [_, _, "add", packageName] => Some(Add(packageName, None))
   | [_, _, "add", packageName, "--folder", folder] => Some(Add(packageName, Some(folder)))
   | [_, _, "update"] => Some(Update)
+  | [_, _, "delete"] => Some(Delete)
   | [_, _, "publish"] => Some(Publish)
   | _ => None
   }

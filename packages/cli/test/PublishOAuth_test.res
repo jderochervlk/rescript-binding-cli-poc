@@ -25,6 +25,8 @@ external deps: (
   ~codeVerifier: PublishOAuth.stringFactory=?,
   ~codeChallengeFromVerifier: PublishOAuth.codeChallengeImpl=?,
   ~promptForPublishInput: PublishOAuth.promptForPublishInputImpl=?,
+  ~selectDeleteRelease: PublishOAuth.selectDeleteReleaseImpl=?,
+  ~confirmDeleteRelease: PublishOAuth.confirmDeleteReleaseImpl=?,
   unit,
 ) => PublishOAuth.deps = ""
 
@@ -642,6 +644,68 @@ let run = async () => {
     !(publishLogs->some(message => message->includes("@inquirer/prompts/isEven"))),
     "publish success summary does not include variant or source filename",
   )
+
+  let deleteRelease: PublishOAuth.publishedRelease = {
+    id: "delete-release",
+    packageName: "is-even",
+    variantLabel: "Default",
+    peerPackageRange: "^1.0.0",
+    rescriptRange: "^12.0.0",
+    createdAt: "2026-05-03T12:00:00.000Z",
+  }
+  let deletePostAuth = ref("")
+  let selectedWithShowAll = ref(false)
+  let confirmDeleteCalled = ref(false)
+  let deleteLogs = await captureConsoleLog(async () => {
+    await PublishOAuth.runDelete(Some(options(~deps=deps(
+      ~now=() => now,
+      ~platform="linux",
+      ~homeDir="/home/josh",
+      ~readCache=readCache(tokenBundle(
+        ~accessToken="delete-token",
+        ~refreshToken="oauth:delete-refresh",
+        ~expiresAt=now +. 120000.0,
+        ~clientId="delete-client",
+        (),
+      )),
+      ~writeCache=noWriteCache("delete with reusable token should not persist cache"),
+      ~fetch=async (url, init) => {
+        if url == PublishOAuth.publishBaseUrl ++ "/v1/me" {
+          jsonResponse({"displayName": "Delete Dev", "email": "delete@example.com", "access": {"authenticated": true}})
+        } else if url == PublishOAuth.publishBaseUrl ++ "/v1/releases" {
+          deletePostAuth := init->initHeaders->authorization
+          jsonResponse({"releases": [deleteRelease]})
+        } else if url == PublishOAuth.publishBaseUrl ++ "/v1/releases/delete-release" {
+          deletePostAuth := init->initHeaders->authorization
+          jsonResponse({
+            "releaseId": "delete-release",
+            "packageName": "is-even",
+            "peerPackageRange": "^1.0.0",
+            "rescriptRange": "^12.0.0",
+            "deleted": true,
+          })
+        } else {
+          expectUnexpected("delete flow", url)
+        }
+      },
+      ~openBrowser=noBrowser("delete with reusable token should not open browser"),
+      ~createLoopbackServer=noLoopback("delete with reusable token should not create loopback server"),
+      ~selectDeleteRelease=async (releases, includeShowAll, _stdin, _stdout) => {
+        selectedWithShowAll := includeShowAll
+        releases[0]
+      },
+      ~confirmDeleteRelease=async (release, _stdin, _stdout) => {
+        confirmDeleteCalled := release.id == "delete-release"
+        true
+      },
+      (),
+    ), ())))
+  })
+
+  assertStringEquals(deletePostAuth.contents, "Bearer delete-token", "delete sends the cached bearer token")
+  assertTrue(selectedWithShowAll.contents, "delete initially offers the show-all option")
+  assertTrue(confirmDeleteCalled.contents, "delete confirms the selected release")
+  assertTrue(deleteLogs->some(message => message == "Deleted release: delete-release"), "delete prints deleted release id")
 
   Console.log("PublishOAuth_test.res passed")
 }

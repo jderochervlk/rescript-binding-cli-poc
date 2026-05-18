@@ -8,6 +8,7 @@ let run = async (): unit => {
     | Get(packageName, author) => await Cli.runGet(~packageName, ~author)
     | Add(packageName, folder) => await Cli.runAdd(~packageName, ~folder)
     | Update => await Cli.runUpdate()
+    | Delete => await Cli.runDelete()
     | Publish => await Cli.runPublish()
     }
   | None => Cli.usage()

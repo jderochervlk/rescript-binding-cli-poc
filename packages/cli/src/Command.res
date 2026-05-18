@@ -89,6 +89,14 @@ let addUpdateCommand = program => {
   ->ignore
 }
 
+let addDeleteCommand = program => {
+  program
+  ->Commander.command("delete")
+  ->Commander.description("Delete one of your published binding releases")
+  ->Commander.actionPublish(async () => await PublishOAuth.runDelete(None))
+  ->ignore
+}
+
 let addPublishCommand = program => {
   program
   ->Commander.command("publish")
@@ -105,6 +113,7 @@ let makeProgram = () => {
   addGetCommand(program)
   addAddCommand(program)
   addUpdateCommand(program)
+  addDeleteCommand(program)
   addPublishCommand(program)
   program
 }
