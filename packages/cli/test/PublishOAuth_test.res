@@ -727,6 +727,58 @@ let run = async () => {
   assertTrue(confirmDeleteCalled.contents, "delete confirms the selected release")
   assertTrue(deleteLogs->some(message => message == "Deleted release: delete-release"), "delete prints deleted release id")
 
+  let showAllFetchCalled = ref(false)
+  let showAllSelectCount = ref(0)
+  let showAllLogs = await captureConsoleLog(async () => {
+    await PublishOAuth.runDelete(Some(options(~deps=deps(
+      ~now=() => now,
+      ~platform="linux",
+      ~homeDir="/home/josh",
+      ~readCache=readCache(tokenBundle(
+        ~accessToken="show-all-token",
+        ~refreshToken="oauth:show-all-refresh",
+        ~expiresAt=now +. 120000.0,
+        ~clientId="show-all-client",
+        (),
+      )),
+      ~writeCache=noWriteCache("show-all delete with reusable token should not persist cache"),
+      ~fetch=async (url, _init) => {
+        if url == PublishOAuth.publishBaseUrl ++ "/v1/me" {
+          jsonResponse({"displayName": "Delete Dev", "email": "delete@example.com", "access": {"authenticated": true}})
+        } else if url == PublishOAuth.publishBaseUrl ++ "/v1/releases" {
+          jsonResponse({"releases": [deleteRelease]})
+        } else if url == PublishOAuth.publishBaseUrl ++ "/v1/releases?all=true" {
+          showAllFetchCalled := true
+          jsonResponse({"releases": [deleteRelease]})
+        } else if url == PublishOAuth.publishBaseUrl ++ "/v1/releases/delete-release" {
+          jsonResponse({
+            "releaseId": "delete-release",
+            "packageName": "is-even",
+            "peerPackageRange": "^1.0.0",
+            "rescriptRange": "^12.0.0",
+            "deleted": true,
+          })
+        } else {
+          expectUnexpected("delete show-all flow", url)
+        }
+      },
+      ~openBrowser=noBrowser("show-all delete with reusable token should not open browser"),
+      ~createLoopbackServer=noLoopback("show-all delete with reusable token should not create loopback server"),
+      ~selectDeleteRelease=async (releases, _includeShowAll, _stdin, _stdout) => {
+        showAllSelectCount := showAllSelectCount.contents + 1
+        if showAllSelectCount.contents == 1 {
+          None
+        } else {
+          releases[0]
+        }
+      },
+      ~confirmDeleteRelease=async (_release, _stdin, _stdout) => true,
+      (),
+    ), ())))
+  })
+  assertTrue(showAllFetchCalled.contents, "delete fetches all releases after selecting show all")
+  assertTrue(showAllLogs->some(message => message == "Deleted release: delete-release"), "delete completes after show all selection")
+
   Console.log("PublishOAuth_test.res passed")
 }
 

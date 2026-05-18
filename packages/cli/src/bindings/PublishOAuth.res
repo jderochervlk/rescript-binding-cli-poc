@@ -831,10 +831,12 @@ let runPublishAuthSession = async (maybeOptions: option<options>) => {
       )
 
       await writeCache(cachePath, nextBundle)
-      await fetchCurrentSession(
+      let session = await fetchCurrentSession(
         ~accessToken=nextBundle->tokenAccessToken->Belt.Option.getExn,
         ~fetchImpl,
       )
+      await loopback->loopbackClose
+      session
     } catch {
     | error =>
       await loopback->loopbackClose
@@ -980,7 +982,7 @@ let defaultSelectDeleteRelease: selectDeleteReleaseImpl = async (releases, inclu
   }
 
   if releases->Array.length == 0 {
-    %raw("null")
+    None
   } else {
     let showAllValue = "__show_all__"
     let choices =
@@ -1018,7 +1020,7 @@ let defaultSelectDeleteRelease: selectDeleteReleaseImpl = async (releases, inclu
     )
 
     if selectedId == showAllValue {
-      %raw("null")
+      None
     } else {
       releases->Array.find(release => release.id == selectedId)
     }
