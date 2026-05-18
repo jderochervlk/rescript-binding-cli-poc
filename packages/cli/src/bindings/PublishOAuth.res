@@ -18,6 +18,10 @@ type session = {
 type loopbackServer
 type loopbackInput
 type callback
+type httpServer
+type httpRequest
+type httpResponse
+type serverAddress
 type errorPayload
 type spawnImpl
 type input
@@ -75,6 +79,8 @@ type completer = string => (array<string>, string)
 @module("node:process") external cwd: unit => string = "cwd"
 @module("node:readline/promises")
 external createInterface: readlineOptions => readline = "createInterface"
+@module("node:http")
+external createHttpServer: ((httpRequest, httpResponse) => unit) => httpServer = "createServer"
 @module("node:fs")
 external readdirSync: (string, NodeFs.readdirOptions) => array<NodeFs.dirent> = "readdirSync"
 @module("node:fs") external statSync: string => NodeFs.stats = "statSync"
@@ -87,6 +93,7 @@ external unsafeJson: WebFetch.jsonValue => 'a = "%identity"
 @new external makeUrl: string => url = "URL"
 @new external makeUrlWithBase: (string, string) => url = "URL"
 @get external urlHostname: url => string = "hostname"
+@get external urlPathname: url => string = "pathname"
 @get external urlSearchParams: url => searchParams = "searchParams"
 @set external setUrlPathname: (url, string) => unit = "pathname"
 @set external setUrlSearch: (url, string) => unit = "search"
@@ -105,6 +112,14 @@ external unsafeJson: WebFetch.jsonValue => 'a = "%identity"
 @send external sortInPlaceWith: (array<'a>, ('a, 'a) => int) => unit = "sort"
 @send external question: (readline, string) => promise<string> = "question"
 @send external closeReadline: readline => unit = "close"
+@return(nullable) @get external httpRequestUrl: httpRequest => option<string> = "url"
+@set external setHttpStatusCode: (httpResponse, int) => unit = "statusCode"
+@send external endHttpResponse: (httpResponse, string) => unit = "end"
+@send external httpServerOnceError: (httpServer, string, exn => unit) => httpServer = "once"
+@send external httpServerListen: (httpServer, int, string, unit => unit) => httpServer = "listen"
+@return(nullable) @send external httpServerAddress: httpServer => option<serverAddress> = "address"
+@send external httpServerClose: (httpServer, exn => unit) => httpServer = "close"
+@get external serverAddressPort: serverAddress => int = "port"
 @get external inputIsTty: input => option<bool> = "isTTY"
 @get external outputIsTty: output => option<bool> = "isTTY"
 @get external jsErrorStatus: JsExn.t => option<int> = "status"
@@ -136,6 +151,15 @@ external searchConfig: (
 ) => searchConfig = ""
 @obj external promptContext: (~input: input, ~output: output, unit) => promptContext = ""
 @obj external loopbackInput: (~expectedState: string, unit) => loopbackInput = ""
+@obj external oauthCallbackInputObj: (~callbackUrl: url, ~expectedState: string, unit) => oauthCallbackInput = ""
+@obj external loopbackCallbackObj: (~code: string, ~state: string, unit) => callback = ""
+@obj
+external loopbackServerObj: (
+  ~redirectUri: string,
+  ~waitForCode: unit => promise<callback>,
+  ~close: unit => promise<unit>,
+  unit,
+) => loopbackServer = ""
 @obj
 external cacheInputObj: (
   ~platform: string,
@@ -377,7 +401,7 @@ let readOAuthCallback = input => {
     if state != input->callbackExpectedState {
       fail("OAuth state validation failed")
     }
-    {"code": code, "state": state}
+    loopbackCallbackObj(~code, ~state, ())
   | _ =>
     let query = searchParams->searchParamsToString
     fail(
@@ -392,51 +416,59 @@ let readOAuthCallback = input => {
 
 let defaultCreateLoopbackServer = async (input: loopbackInput) => {
   let expectedState = input->loopbackExpectedState
-  let _ = expectedState
-  let _ = readOAuthCallback
-  let loopback: loopbackServer = await %raw(`(async () => {
-    const { createServer } = await import("node:http");
-    let resolveCode;
-    let rejectCode;
-    const result = new Promise((resolve, reject) => {
-      resolveCode = resolve;
-      rejectCode = reject;
-    });
-    const server = createServer((request, response) => {
-      const callbackUrl = new URL(request.url, "http://127.0.0.1");
-      if (callbackUrl.pathname !== "/callback") {
-        response.statusCode = 404;
-        response.end("Not found");
-        return;
-      }
+  let codeResult = Promise.withResolvers()
+  let server = createHttpServer((request, response) => {
+    let requestUrl = request->httpRequestUrl->Belt.Option.getWithDefault("/")
+    let callbackUrl = makeUrlWithBase(requestUrl, "http://127.0.0.1")
+
+    if callbackUrl->urlPathname != "/callback" {
+      response->setHttpStatusCode(404)
+      response->endHttpResponse("Not found")
+    } else {
       try {
-        const callback = readOAuthCallback({ callbackUrl, expectedState });
-        response.statusCode = 200;
-        response.end("Authentication complete. You can return to the terminal.");
-        resolveCode(callback);
-      } catch (error) {
-        response.statusCode = 400;
-        response.end(error.message);
-        rejectCode(error);
+        let callback = readOAuthCallback(oauthCallbackInputObj(~callbackUrl, ~expectedState, ()))
+        response->setHttpStatusCode(200)
+        response->endHttpResponse("Authentication complete. You can return to the terminal.")
+        codeResult.resolve(callback)
+      } catch {
+      | error =>
+        response->setHttpStatusCode(400)
+        let message = switch error->JsExn.fromException {
+        | Some(jsError) => jsError->JsExn.message->Belt.Option.getWithDefault("OAuth callback failed")
+        | None => "OAuth callback failed"
+        }
+        response->endHttpResponse(message)
+        codeResult.reject(error)
       }
-    });
-    await new Promise((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(0, "127.0.0.1", resolve);
-    });
-    const address = server.address();
-    if (!address || typeof address === "string") {
-      throw new Error("Failed to allocate loopback callback port");
     }
-    return {
-      redirectUri: "http://127.0.0.1:" + address.port + "/callback",
-      waitForCode: async () => result,
-      close: async () => new Promise((resolve, reject) => {
-        server.close(error => error ? reject(error) : resolve());
+  })
+
+  await Promise.make((resolve, reject) => {
+    server->httpServerOnceError("error", reject)->ignore
+    server->httpServerListen(0, "127.0.0.1", () => resolve(()))->ignore
+  })
+
+  let port = switch server->httpServerAddress {
+  | Some(address) => address->serverAddressPort
+  | None => fail("Failed to allocate loopback callback port")
+  }
+
+  loopbackServerObj(
+    ~redirectUri="http://127.0.0.1:" ++ port->Int.toString ++ "/callback",
+    ~waitForCode=() => codeResult.promise,
+    ~close=() =>
+      Promise.make((resolve, reject) => {
+        server
+        ->httpServerClose(error => {
+          switch nullableToOption(error) {
+          | Some(error) => reject(error)
+          | None => resolve(())
+          }
+        })
+        ->ignore
       }),
-    };
-  })()`)
-  loopback
+    (),
+  )
 }
 
 let raiseHttpError = (~message, ~status, ~payload: option<errorPayload>) => {

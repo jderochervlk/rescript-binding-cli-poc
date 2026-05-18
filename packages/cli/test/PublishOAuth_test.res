@@ -10,6 +10,7 @@ type searchParams
 @obj external cacheInput: (~platform: string, ~homeDir: string, ~hostname: string, unit) => PublishOAuth.cacheInput = ""
 @obj external openOptions: (~platform: string=?, ~spawn: PublishOAuth.spawnImpl=?, ~log: PublishOAuth.logImpl=?, unit) => PublishOAuth.openOptions = ""
 @obj external callbackInput: (~callbackUrl: PublishOAuth.url, ~expectedState: string, unit) => PublishOAuth.oauthCallbackInput = ""
+@obj external loopbackInput: (~expectedState: string, unit) => PublishOAuth.loopbackInput = ""
 @obj external options: (~deps: PublishOAuth.deps, unit) => PublishOAuth.options = ""
 @obj
 external deps: (
@@ -40,6 +41,9 @@ external deps: (
 
 @obj external loopbackCallback: (~code: string, ~state: string, unit) => PublishOAuth.callback = ""
 @get external loopbackExpectedState: PublishOAuth.loopbackInput => string = "expectedState"
+@get external loopbackRedirectUri: PublishOAuth.loopbackServer => string = "redirectUri"
+@send external loopbackWaitForCode: PublishOAuth.loopbackServer => promise<PublishOAuth.callback> = "waitForCode"
+@send external loopbackClose: PublishOAuth.loopbackServer => promise<unit> = "close"
 @get external initRedirect: PublishOAuth.fetchInit => option<string> = "redirect"
 @get external initBody: PublishOAuth.fetchInit => string = "body"
 @get external initHeaders: PublishOAuth.fetchInit => 'headers = "headers"
@@ -49,6 +53,7 @@ external deps: (
 @get external bodyPackageName: 'body => string = "packageName"
 @get external bodyFiles: 'body => array<RegistryTypes.fileEntry> = "files"
 @get external code: 'callback => string = "code"
+@val external fetch: string => promise<WebFetch.response> = "fetch"
 @new external makeOAuthUrl: string => PublishOAuth.url = "URL"
 @new external makeUrl: string => url = "URL"
 @get external searchParams: url => searchParams = "searchParams"
@@ -265,6 +270,21 @@ let run = async () => {
     (),
   ))
   assertStringEquals(validCallback->code, "auth-code", "valid OAuth callback returns the authorization code")
+
+  let realLoopback = await PublishOAuth.defaultCreateLoopbackServer(loopbackInput(
+    ~expectedState="loopback-state",
+    (),
+  ))
+  try {
+    let _ = await fetch(realLoopback->loopbackRedirectUri ++ "?code=loopback-code&state=loopback-state")
+    let loopbackCallback = await realLoopback->loopbackWaitForCode
+    assertStringEquals(loopbackCallback->code, "loopback-code", "default loopback server resolves callback code")
+    await realLoopback->loopbackClose
+  } catch {
+  | error =>
+    await realLoopback->loopbackClose
+    throw(error)
+  }
 
   let reuseMeAuth = ref("")
   let reuseResult = await PublishOAuth.runPublishAuth(Some(options(~deps=deps(
