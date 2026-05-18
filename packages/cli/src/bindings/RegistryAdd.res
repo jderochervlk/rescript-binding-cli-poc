@@ -392,6 +392,9 @@ let authorLabel = (release: releasePayload) =>
 let installHeaderFor = (release: releasePayload) =>
   "/**\n" ++
   "* Fetched from @jvlk/rescript-bindings\n" ++
+  "* Package: " ++
+  release.packageName ++
+  "\n" ++
   "* " ++
   AddPackageName.toModuleName(release.packageName) ++
   " version: " ++

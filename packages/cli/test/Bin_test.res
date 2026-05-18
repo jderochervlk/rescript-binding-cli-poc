@@ -113,6 +113,7 @@ let run = async () => {
   TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("recent"), "bundled CLI help includes recent command")
   TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("search"), "bundled CLI help includes search command")
   TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("get"), "bundled CLI help includes get command")
+  TestSupport.assertTrue(rootHelp->runStdout->TestSupport.includes("update"), "bundled CLI help includes update command")
 
   let addHelp = await importBinWithArgs(["add", "--help"], "bin-test-add-help", wrapperPath, wrapperHref)
   TestSupport.assertTrue(addHelp->runExitCode == None || addHelp->runExitCode == Some(0), "add help exits successfully")
@@ -161,6 +162,16 @@ let run = async () => {
   TestSupport.assertTrue(
     !(bareGet->runStderr->TestSupport.includes("missing required argument")),
     "bare get does not print a missing argument error",
+  )
+
+  let updateHelp = await importBinWithArgs(["update", "--help"], "bin-test-update-help", wrapperPath, wrapperHref)
+  TestSupport.assertTrue(
+    updateHelp->runExitCode == None || updateHelp->runExitCode == Some(0),
+    "update help exits successfully",
+  )
+  TestSupport.assertTrue(
+    updateHelp->runStdout->TestSupport.includes("Usage: rescript-bindings update"),
+    "update command is registered in bundled CLI",
   )
 
   let legacyBinding = await importBinWithArgs(["binding", "publish"], "bin-test-legacy-binding", wrapperPath, wrapperHref)

@@ -1,5 +1,5 @@
 {
-  "name": "@jvlk/rescript-bindings",
+  "name": "@jvlk/rescript-bindings-api",
   "sources": [
     {
       "dir": "src",
@@ -9,14 +9,8 @@
       "dir": "test",
       "subdirs": true,
       "type": "dev"
-    },
-    {
-      "dir": "scripts",
-      "subdirs": false,
-      "type": "dev"
     }
   ],
-  "dependencies": ["@jvlk/rescript-bindings-api"],
   "package-specs": {
     "module": "esmodule",
     "in-source": true

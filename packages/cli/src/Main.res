@@ -7,6 +7,7 @@ let run = async (): unit => {
     | Search(query) => await Cli.runSearch(~query)
     | Get(packageName, author) => await Cli.runGet(~packageName, ~author)
     | Add(packageName, folder) => await Cli.runAdd(~packageName, ~folder)
+    | Update => await Cli.runUpdate()
     | Publish => await Cli.runPublish()
     }
   | None => Cli.usage()

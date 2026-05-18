@@ -1,0 +1,20 @@
+{
+  "name": "@jvlk/rescript-bindings-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rescript build",
+    "clean": "rescript clean",
+    "test": "pnpm run build && node test/Validation_test.res.mjs && node test/Worker_test.res.mjs && node test/DiscoveryApi_test.res.mjs && node test/D1_test.res.mjs",
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@rescript/runtime": "^12.2.0"
+  },
+  "devDependencies": {
+    "rescript": "^12.0.0",
+    "wrangler": "^4.90.0"
+  }
+}

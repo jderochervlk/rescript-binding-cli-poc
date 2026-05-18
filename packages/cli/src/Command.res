@@ -81,6 +81,14 @@ let addGetCommand = program => {
   ->ignore
 }
 
+let addUpdateCommand = program => {
+  program
+  ->Commander.command("update")
+  ->Commander.description("Update installed bindings in src/Bindings.res")
+  ->Commander.actionPublish(async () => await RegistryUpdate.runUpdate())
+  ->ignore
+}
+
 let addPublishCommand = program => {
   program
   ->Commander.command("publish")
@@ -96,6 +104,7 @@ let makeProgram = () => {
   addSearchCommand(program)
   addGetCommand(program)
   addAddCommand(program)
+  addUpdateCommand(program)
   addPublishCommand(program)
   program
 }

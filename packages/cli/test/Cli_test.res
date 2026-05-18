@@ -52,6 +52,12 @@ let () = {
   )
 
   assertParse(
+    ["node", "src/Main.res.mjs", "update"],
+    Some(Update),
+    "parse update command",
+  )
+
+  assertParse(
     ["node", "src/Main.res.mjs", "binding", "install", "pkg"],
     None,
     "reject unknown command",
