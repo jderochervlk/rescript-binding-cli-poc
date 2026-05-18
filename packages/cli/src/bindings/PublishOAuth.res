@@ -55,8 +55,10 @@ type completer = string => (array<string>, string)
 @module("node:process") external stdin: input = "stdin"
 @module("node:process") external stdout: output = "stdout"
 @module("node:process") external cwd: unit => string = "cwd"
-@module("node:readline/promises") external createInterface: readlineOptions => readline = "createInterface"
-@module("node:fs") external readdirSync: (string, NodeFs.readdirOptions) => array<NodeFs.dirent> = "readdirSync"
+@module("node:readline/promises")
+external createInterface: readlineOptions => readline = "createInterface"
+@module("node:fs")
+external readdirSync: (string, NodeFs.readdirOptions) => array<NodeFs.dirent> = "readdirSync"
 @module("node:fs") external statSync: string => NodeFs.stats = "statSync"
 @scope("Date") @val external dateNow: unit => float = "now"
 @scope("JSON") @val external parseJson: string => 'a = "parse"
@@ -93,7 +95,9 @@ external unsafeJson: WebFetch.jsonValue => 'a = "%identity"
 
 @obj external emptyFetchInit: unit => fetchInit = ""
 @obj external getDiscoveryFetchInit: (~method: string, ~redirect: string, unit) => fetchInit = ""
-@obj external postFetchInit: (~method: string, ~headers: headersInit, ~body: string, unit) => fetchInit = ""
+@obj
+external postFetchInit: (~method: string, ~headers: headersInit, ~body: string, unit) => fetchInit =
+  ""
 @obj external getAuthFetchInit: (~method: string, ~headers: headersInit, unit) => fetchInit = ""
 @obj external readlineOptions: (~input: input, ~output: output, unit) => readlineOptions = ""
 @obj
@@ -113,8 +117,15 @@ external searchConfig: (
 ) => searchConfig = ""
 @obj external promptContext: (~input: input, ~output: output, unit) => promptContext = ""
 @obj external loopbackInput: (~expectedState: string, unit) => loopbackInput = ""
-@obj external cacheInputObj: (~platform: string, ~homeDir: string, ~hostname: string, unit) => cacheInput = ""
-@obj external promptInputObj: (~cwd: string, ~stdin: input, ~stdout: output, unit) => promptInput = ""
+@obj
+external cacheInputObj: (
+  ~platform: string,
+  ~homeDir: string,
+  ~hostname: string,
+  unit,
+) => cacheInput = ""
+@obj
+external promptInputObj: (~cwd: string, ~stdin: input, ~stdout: output, unit) => promptInput = ""
 
 @get external cachePlatform: cacheInput => option<string> = "platform"
 @get external cacheHomeDir: cacheInput => option<string> = "homeDir"
@@ -133,11 +144,16 @@ external searchConfig: (
 @get external depReadCache: deps => option<readCacheImpl> = "readCache"
 @get external depWriteCache: deps => option<writeCacheImpl> = "writeCache"
 @get external depOpenBrowser: deps => option<openBrowserImpl> = "openBrowser"
-@get external depCreateLoopbackServer: deps => option<createLoopbackServerImpl> = "createLoopbackServer"
+@get
+external depCreateLoopbackServer: deps => option<createLoopbackServerImpl> = "createLoopbackServer"
 @get external depRandomString: deps => option<stringFactory> = "randomString"
 @get external depCodeVerifier: deps => option<stringFactory> = "codeVerifier"
-@get external depCodeChallengeFromVerifier: deps => option<codeChallengeImpl> = "codeChallengeFromVerifier"
-@get external depPromptForPublishInput: deps => option<promptForPublishInputImpl> = "promptForPublishInput"
+@get
+external depCodeChallengeFromVerifier: deps => option<codeChallengeImpl> =
+  "codeChallengeFromVerifier"
+@get
+external depPromptForPublishInput: deps => option<promptForPublishInputImpl> =
+  "promptForPublishInput"
 @get external depCwd: deps => option<string> = "cwd"
 @get external depStdin: deps => option<input> = "stdin"
 @get external depStdout: deps => option<output> = "stdout"
@@ -166,7 +182,8 @@ external searchConfig: (
 @get external publishResultPackageName: 'result => string = "packageName"
 @get external publishResultFileCount: 'result => int = "fileCount"
 
-@module("@inquirer/prompts") external search: (searchConfig, promptContext) => promise<string> = "search"
+@module("@inquirer/prompts")
+external search: (searchConfig, promptContext) => promise<string> = "search"
 
 let publishBaseUrl = RegistryConfig.publishBaseUrl
 let oauthResource = RegistryConfig.oauthResource
@@ -174,7 +191,8 @@ let oauthResource = RegistryConfig.oauthResource
 let nullableToOption = _value => %raw("_value == null ? undefined : _value")
 let emptyDeps = (): deps => %raw("({})")
 let jsonHeaders = (): headersInit => %raw(`({ "Content-Type": "application/json" })`)
-let formHeaders = (): headersInit => %raw(`({ "Content-Type": "application/x-www-form-urlencoded" })`)
+let formHeaders = (): headersInit =>
+  %raw(`({ "Content-Type": "application/x-www-form-urlencoded" })`)
 let authHeaders = token => {
   let _ = token
   %raw(`({ Authorization: "Bearer " + token })`)
@@ -213,7 +231,14 @@ let cacheFilePathFor = input => {
   let filename = hostname ++ ".json"
 
   if targetPlatform == "darwin" {
-    joinPath([normalizedHomeDir, "Library", "Application Support", "rescript-bindings", "oauth", filename])
+    joinPath([
+      normalizedHomeDir,
+      "Library",
+      "Application Support",
+      "rescript-bindings",
+      "oauth",
+      filename,
+    ])
   } else if targetPlatform == "win32" {
     joinPath([normalizedHomeDir, "rescript-bindings", "oauth", filename])
   } else {
@@ -232,7 +257,8 @@ let isAccessTokenUsableFromOption = (bundle, now) =>
   | None => false
   }
 
-let isAccessTokenUsable = (bundle, now) => isAccessTokenUsableFromOption(nullableToOption(bundle), now)
+let isAccessTokenUsable = (bundle, now) =>
+  isAccessTokenUsableFromOption(nullableToOption(bundle), now)
 
 let selectAuthStrategyFromOption = (bundle, now) =>
   PublishTokenStrategy.selectName(
@@ -243,7 +269,8 @@ let selectAuthStrategyFromOption = (bundle, now) =>
     },
   )
 
-let selectAuthStrategy = (bundle, now) => selectAuthStrategyFromOption(nullableToOption(bundle), now)
+let selectAuthStrategy = (bundle, now) =>
+  selectAuthStrategyFromOption(nullableToOption(bundle), now)
 
 let codeChallengeFromVerifier = verifier =>
   createHash("sha256")->hashUpdate(verifier)->hashDigest("base64url")
@@ -312,10 +339,12 @@ let readOAuthCallback = input => {
 
   switch error {
   | Some(error) =>
-    fail(switch errorDescription {
-    | Some(description) => "OAuth callback error: " ++ error ++ ": " ++ description
-    | None => "OAuth callback error: " ++ error
-    })
+    fail(
+      switch errorDescription {
+      | Some(description) => "OAuth callback error: " ++ error ++ ": " ++ description
+      | None => "OAuth callback error: " ++ error
+      },
+    )
   | None => ()
   }
 
@@ -327,11 +356,13 @@ let readOAuthCallback = input => {
     {"code": code, "state": state}
   | _ =>
     let query = searchParams->searchParamsToString
-    fail(if query != "" {
-      "OAuth callback missing code or state. Callback query: " ++ query
-    } else {
-      "OAuth callback missing code or state. Callback query was empty."
-    })
+    fail(
+      if query != "" {
+        "OAuth callback missing code or state. Callback query: " ++ query
+      } else {
+        "OAuth callback missing code or state. Callback query was empty."
+      },
+    )
   }
 }
 
@@ -396,7 +427,8 @@ let readJson = async (response: WebFetch.response): 'payload => {
   if response->WebFetch.ok {
     (await response->WebFetch.json)->unsafeJson
   } else {
-    let contentType = response->WebFetch.headers->WebFetch.getHeader("content-type")->Belt.Option.getWithDefault("")
+    let contentType =
+      response->WebFetch.headers->WebFetch.getHeader("content-type")->Belt.Option.getWithDefault("")
 
     if contentType->includesString("application/json") {
       let payload: errorPayload = (await response->WebFetch.json)->unsafeJson
@@ -486,7 +518,9 @@ let discoverAuthorizationServer = async (~fetchImpl) => {
 
   switch resourceMetadataUrl {
   | Some(resourceMetadataUrl) =>
-    let resourceMetadata: resourceMetadata = await readJson(await fetchImpl(resourceMetadataUrl, emptyFetchInit()))
+    let resourceMetadata: resourceMetadata = await readJson(
+      await fetchImpl(resourceMetadataUrl, emptyFetchInit()),
+    )
     let authorizationServer = switch resourceMetadata.authorization_servers {
     | Some(servers) =>
       switch servers[0] {
@@ -495,10 +529,17 @@ let discoverAuthorizationServer = async (~fetchImpl) => {
       }
     | None => fail("Cloudflare Access resource metadata did not include authorization_servers")
     }
-    await readJson(await fetchImpl(authorizationServerMetadataUrlFrom(authorizationServer), emptyFetchInit()))
+    await readJson(
+      await fetchImpl(authorizationServerMetadataUrlFrom(authorizationServer), emptyFetchInit()),
+    )
   | None =>
     let metadataUrl = makeUrlWithBase("/.well-known/oauth-authorization-server", publishBaseUrl)
-    await readJson(await fetchImpl(metadataUrl->urlToString, getDiscoveryFetchInit(~method="GET", ~redirect="manual", ())))
+    await readJson(
+      await fetchImpl(
+        metadataUrl->urlToString,
+        getDiscoveryFetchInit(~method="GET", ~redirect="manual", ()),
+      ),
+    )
   }
 }
 
@@ -515,13 +556,22 @@ let registerPublicClient = async (~metadata, ~redirectUri, ~fetchImpl) => {
     "response_types": ["code"],
     "resource": oauthResource,
   })
-  await readJson(await fetchImpl(
-    metadata->metadataRegistrationEndpoint,
-    postFetchInit(~method="POST", ~headers=jsonHeaders(), ~body, ()),
-  ))
+  await readJson(
+    await fetchImpl(
+      metadata->metadataRegistrationEndpoint,
+      postFetchInit(~method="POST", ~headers=jsonHeaders(), ~body, ()),
+    ),
+  )
 }
 
-let exchangeCodeForToken = async (~metadata, ~clientId, ~redirectUri, ~code, ~codeVerifier, ~fetchImpl) => {
+let exchangeCodeForToken = async (
+  ~metadata,
+  ~clientId,
+  ~redirectUri,
+  ~code,
+  ~codeVerifier,
+  ~fetchImpl,
+) => {
   let body = formEncode([
     ("grant_type", "authorization_code"),
     ("client_id", clientId),
@@ -530,10 +580,12 @@ let exchangeCodeForToken = async (~metadata, ~clientId, ~redirectUri, ~code, ~co
     ("redirect_uri", redirectUri),
     ("resource", oauthResource),
   ])
-  await readJson(await fetchImpl(
-    metadata->metadataTokenEndpoint,
-    postFetchInit(~method="POST", ~headers=formHeaders(), ~body, ()),
-  ))
+  await readJson(
+    await fetchImpl(
+      metadata->metadataTokenEndpoint,
+      postFetchInit(~method="POST", ~headers=formHeaders(), ~body, ()),
+    ),
+  )
 }
 
 let refreshTokenBundle = async (~metadata, ~clientId, ~refreshToken, ~fetchImpl) => {
@@ -543,10 +595,12 @@ let refreshTokenBundle = async (~metadata, ~clientId, ~refreshToken, ~fetchImpl)
     ("client_id", clientId),
     ("resource", oauthResource),
   ])
-  await readJson(await fetchImpl(
-    metadata->metadataTokenEndpoint,
-    postFetchInit(~method="POST", ~headers=formHeaders(), ~body, ()),
-  ))
+  await readJson(
+    await fetchImpl(
+      metadata->metadataTokenEndpoint,
+      postFetchInit(~method="POST", ~headers=formHeaders(), ~body, ()),
+    ),
+  )
 }
 
 let buildTokenBundle = (~tokenResponse, ~metadata, ~clientId, ~now, ~previous) => {
@@ -609,24 +663,30 @@ let runPublishAuthSession = async (maybeOptions: option<options>) => {
   }
   let now = deps->depNow->Belt.Option.getWithDefault(dateNow)
   let targetPlatform = deps->depPlatform->Belt.Option.getWithDefault(platform)
-  let homeDir = deps
-  ->depHomeDir
-  ->Belt.Option.getWithDefault(if targetPlatform == "win32" {
-    NodeProcess.envGet("APPDATA")->Belt.Option.getWithDefault(homedir())
-  } else {
-    homedir()
-  })
+  let homeDir =
+    deps
+    ->depHomeDir
+    ->Belt.Option.getWithDefault(
+      if targetPlatform == "win32" {
+        NodeProcess.envGet("APPDATA")->Belt.Option.getWithDefault(homedir())
+      } else {
+        homedir()
+      },
+    )
   let readCache = deps->depReadCache->Belt.Option.getWithDefault(defaultReadCache)
   let writeCache = deps->depWriteCache->Belt.Option.getWithDefault(defaultWriteCache)
-  let openBrowser = deps->depOpenBrowser->Belt.Option.getWithDefault(url => defaultOpenBrowser(url, None))
-  let createLoopbackServer = deps
-  ->depCreateLoopbackServer
-  ->Belt.Option.getWithDefault(defaultCreateLoopbackServer)
+  let openBrowser =
+    deps->depOpenBrowser->Belt.Option.getWithDefault(url => defaultOpenBrowser(url, None))
+  let createLoopbackServer =
+    deps
+    ->depCreateLoopbackServer
+    ->Belt.Option.getWithDefault(defaultCreateLoopbackServer)
   let randomString = deps->depRandomString->Belt.Option.getWithDefault(defaultRandomString)
   let makeCodeVerifier = deps->depCodeVerifier->Belt.Option.getWithDefault(defaultCodeVerifier)
-  let createCodeChallenge = deps
-  ->depCodeChallengeFromVerifier
-  ->Belt.Option.getWithDefault(codeChallengeFromVerifier)
+  let createCodeChallenge =
+    deps
+    ->depCodeChallengeFromVerifier
+    ->Belt.Option.getWithDefault(codeChallengeFromVerifier)
   let hostname = makeUrl(publishBaseUrl)->urlHostname
   let cachePath = cacheFilePathFor(cacheInputObj(~platform=targetPlatform, ~homeDir, ~hostname, ()))
   let cachedBundle = nullableToOption(await readCache(cachePath))
@@ -652,7 +712,12 @@ let runPublishAuthSession = async (maybeOptions: option<options>) => {
     | Some(refreshToken) => refreshToken
     | None => fail("Cached OAuth bundle is missing refreshToken")
     }
-    let refreshed: tokenResponse = await refreshTokenBundle(~metadata, ~clientId, ~refreshToken, ~fetchImpl)
+    let refreshed: tokenResponse = await refreshTokenBundle(
+      ~metadata,
+      ~clientId,
+      ~refreshToken,
+      ~fetchImpl,
+    )
     let nextBundle = buildTokenBundle(
       ~tokenResponse=refreshed,
       ~metadata,
@@ -662,7 +727,10 @@ let runPublishAuthSession = async (maybeOptions: option<options>) => {
     )
 
     await writeCache(cachePath, nextBundle)
-    await fetchCurrentSession(~accessToken=nextBundle->tokenAccessToken->Belt.Option.getExn, ~fetchImpl)
+    await fetchCurrentSession(
+      ~accessToken=nextBundle->tokenAccessToken->Belt.Option.getExn,
+      ~fetchImpl,
+    )
   }
 
   let runInteractiveFlow = async () => {
@@ -707,7 +775,10 @@ let runPublishAuthSession = async (maybeOptions: option<options>) => {
       )
 
       await writeCache(cachePath, nextBundle)
-      await fetchCurrentSession(~accessToken=nextBundle->tokenAccessToken->Belt.Option.getExn, ~fetchImpl)
+      await fetchCurrentSession(
+        ~accessToken=nextBundle->tokenAccessToken->Belt.Option.getExn,
+        ~fetchImpl,
+      )
     } catch {
     | error =>
       await loopback->loopbackClose
@@ -792,7 +863,8 @@ let promptWithDefault = async (readline, label, defaultValue) => {
 
 let questionWithDefault = async (~stdin, ~stdout, ~label, ~defaultValue=?, ~completer=?) => {
   let readline = switch completer {
-  | Some(completer) => createInterface(readlineOptionsWithCompleter(~input=stdin, ~output=stdout, ~completer, ()))
+  | Some(completer) =>
+    createInterface(readlineOptionsWithCompleter(~input=stdin, ~output=stdout, ~completer, ()))
   | None => createInterface(readlineOptions(~input=stdin, ~output=stdout, ()))
   }
   let answer = await promptWithDefault(readline, label, defaultValue)
@@ -806,16 +878,20 @@ let selectPackageName = async (~packageNames, ~stdin, ~stdout) => {
   } else {
     await search(
       searchConfig(
-        ~message="Package name",
+        ~message="What package would you like to add bindings for?",
         ~pageSize=8,
         ~source=async (term, _) => {
           let input = term->Belt.Option.getWithDefault("")->trim
-          let matches = packageNames
-          ->Array.filter(packageName => input == "" || packageName->includesString(input))
-          ->Array.map(packageName => searchChoice(~name=packageName, ~value=packageName, ()))
+          let matches =
+            packageNames
+            ->Array.filter(packageName => input == "" || packageName->includesString(input))
+            ->Array.map(packageName => searchChoice(~name=packageName, ~value=packageName, ()))
 
           if input != "" && !(packageNames->Array.some(packageName => packageName == input)) {
-            Array.concat(matches, [searchChoice(~name="Use custom package \"" ++ input ++ "\"", ~value=input, ())])
+            Array.concat(
+              matches,
+              [searchChoice(~name="Use custom package \"" ++ input ++ "\"", ~value=input, ())],
+            )
           } else {
             matches
           }
@@ -834,58 +910,66 @@ let confirmPublishWith = async (~stdin, ~stdout) => {
   answer == "y" || answer == "yes"
 }
 
-let pathCompleter = projectCwd => inputValue => {
-  let input = inputValue->trim
-  let inputDirectory = if input->endsWith(NodePath.sep) {
-    input
-  } else {
-    NodePath.dirname(input)
-  }
-  let inputBase = if input->endsWith(NodePath.sep) {
-    ""
-  } else {
-    NodePath.basename(input)
-  }
-  let displayDirectory = if inputDirectory == "." {
-    ""
-  } else {
-    inputDirectory
-  }
-  let absoluteDirectory = NodePath.resolve2(projectCwd, if displayDirectory == "" {
-    "."
-  } else {
-    displayDirectory
-  })
-
-  try {
-    let matches = readdirSync(absoluteDirectory, NodeFs.readdirWithFileTypes(~withFileTypes=true, ()))
-    ->Array.filter(entry => !(NodeFs.direntName(entry)->startsWith(".")))
-    ->Array.filter(entry => NodeFs.direntName(entry)->startsWith(inputBase))
-    ->Array.map(entry => {
-      let completedPath = if displayDirectory == "" {
-        NodeFs.direntName(entry)
-      } else {
-        NodePath.join2(displayDirectory, NodeFs.direntName(entry))
-      }
-      try {
-        if statSync(NodePath.resolve2(projectCwd, completedPath))->NodeFs.isDirectory {
-          completedPath ++ NodePath.sep
-        } else {
-          completedPath
-        }
-      } catch {
-      | _ => completedPath
-      }
-    })
-    (if matches->Array.length > 0 {
-      matches
+let pathCompleter = projectCwd =>
+  inputValue => {
+    let input = inputValue->trim
+    let inputDirectory = if input->endsWith(NodePath.sep) {
+      input
     } else {
-      []
-    }, inputValue)
-  } catch {
-  | _ => ([], inputValue)
+      NodePath.dirname(input)
+    }
+    let inputBase = if input->endsWith(NodePath.sep) {
+      ""
+    } else {
+      NodePath.basename(input)
+    }
+    let displayDirectory = if inputDirectory == "." {
+      ""
+    } else {
+      inputDirectory
+    }
+    let absoluteDirectory = NodePath.resolve2(
+      projectCwd,
+      if displayDirectory == "" {
+        "."
+      } else {
+        displayDirectory
+      },
+    )
+
+    try {
+      let matches =
+        readdirSync(absoluteDirectory, NodeFs.readdirWithFileTypes(~withFileTypes=true, ()))
+        ->Array.filter(entry => !(NodeFs.direntName(entry)->startsWith(".")))
+        ->Array.filter(entry => NodeFs.direntName(entry)->startsWith(inputBase))
+        ->Array.map(entry => {
+          let completedPath = if displayDirectory == "" {
+            NodeFs.direntName(entry)
+          } else {
+            NodePath.join2(displayDirectory, NodeFs.direntName(entry))
+          }
+          try {
+            if statSync(NodePath.resolve2(projectCwd, completedPath))->NodeFs.isDirectory {
+              completedPath ++ NodePath.sep
+            } else {
+              completedPath
+            }
+          } catch {
+          | _ => completedPath
+          }
+        })
+      (
+        if matches->Array.length > 0 {
+          matches
+        } else {
+          []
+        },
+        inputValue,
+      )
+    } catch {
+    | _ => ([], inputValue)
+    }
   }
-}
 
 let collectBindingFilesFrom = async (~sourcePath, ~cwd) => {
   let absoluteSourcePath = NodePath.resolve2(cwd, sourcePath)
@@ -895,13 +979,21 @@ let collectBindingFilesFrom = async (~sourcePath, ~cwd) => {
     if !PublishSource.isBindingFilePath(absoluteSourcePath) {
       fail("Binding file must end with .res or .resi")
     }
-    [{relativePath: NodePath.basename(absoluteSourcePath), content: await NodeFs.readFileUtf8(absoluteSourcePath, "utf8")}]
+    [
+      {
+        relativePath: NodePath.basename(absoluteSourcePath),
+        content: await NodeFs.readFileUtf8(absoluteSourcePath, "utf8"),
+      },
+    ]
   } else if !(sourceStats->NodeFs.isDirectory) {
     fail("Binding source must be a file or folder")
   } else {
     let files: array<fileEntry> = []
     let rec walk = async (~directoryPath, ~relativeDirectoryPath) => {
-      let entries = await NodeFs.readdir(directoryPath, NodeFs.readdirWithFileTypes(~withFileTypes=true, ()))
+      let entries = await NodeFs.readdir(
+        directoryPath,
+        NodeFs.readdirWithFileTypes(~withFileTypes=true, ()),
+      )
 
       for index in 0 to entries->Array.length - 1 {
         switch entries[index] {
@@ -909,17 +1001,24 @@ let collectBindingFilesFrom = async (~sourcePath, ~cwd) => {
           if !PublishSource.shouldSkipDirectory(entry->NodeFs.direntName) {
             await walk(
               ~directoryPath=NodePath.join2(directoryPath, entry->NodeFs.direntName),
-              ~relativeDirectoryPath=NodePath.join2(relativeDirectoryPath, entry->NodeFs.direntName),
+              ~relativeDirectoryPath=NodePath.join2(
+                relativeDirectoryPath,
+                entry->NodeFs.direntName,
+              ),
             )
           }
         | Some(entry) if entry->NodeFs.direntIsFile =>
           let name = entry->NodeFs.direntName
           if !(name->startsWith(".")) && PublishSource.isBindingFilePath(name) {
-            let relativePath = PublishSource.toPosixPath(NodePath.join2(relativeDirectoryPath, name))
-            files->Array.push({
+            let relativePath = PublishSource.toPosixPath(
+              NodePath.join2(relativeDirectoryPath, name),
+            )
+            files
+            ->Array.push({
               relativePath,
               content: await NodeFs.readFileUtf8(NodePath.join2(directoryPath, name), "utf8"),
-            })->ignore
+            })
+            ->ignore
           }
         | _ => ()
         }
@@ -999,15 +1098,17 @@ let promptForPublishInput: promptForPublishInputImpl = async (input: promptInput
 }
 
 let publishRelease = async (~input, ~accessToken, ~fetchImpl) =>
-  await readJson(await fetchImpl(
-    publishBaseUrl ++ "/v1/releases",
-    postFetchInit(
-      ~method="POST",
-      ~headers=publishHeaders(accessToken),
-      ~body=stringify(input),
-      (),
+  await readJson(
+    await fetchImpl(
+      publishBaseUrl ++ "/v1/releases",
+      postFetchInit(
+        ~method="POST",
+        ~headers=publishHeaders(accessToken),
+        ~body=stringify(input),
+        (),
+      ),
     ),
-  ))
+  )
 
 let runPublish = async maybeOptions => {
   let deps = depsFromOptions(maybeOptions)
@@ -1020,7 +1121,9 @@ let runPublish = async maybeOptions => {
   let prompt = deps->depPromptForPublishInput->Belt.Option.getWithDefault(promptForPublishInput)
   let promptStdin = deps->depStdin->Belt.Option.getWithDefault(stdin)
   let promptStdout = deps->depStdout->Belt.Option.getWithDefault(stdout)
-  let input = nullableToOption(await prompt(promptInputObj(~cwd=projectCwd, ~stdin=promptStdin, ~stdout=promptStdout, ())))
+  let input = nullableToOption(
+    await prompt(promptInputObj(~cwd=projectCwd, ~stdin=promptStdin, ~stdout=promptStdout, ())),
+  )
 
   switch input {
   | None => Console.log("Publish cancelled.")
@@ -1035,14 +1138,13 @@ let runPublish = async maybeOptions => {
     Console.log(
       result->publishResultPackageName ++
       " (" ++
-      (result->publishResultFileCount->Int.toString) ++
+      result->publishResultFileCount->Int.toString ++
       " file" ++
-      (if result->publishResultFileCount == 1 {
+      if result->publishResultFileCount == 1 {
         ""
       } else {
         "s"
-      }) ++
-      ")",
+      } ++ ")",
     )
   }
 }
