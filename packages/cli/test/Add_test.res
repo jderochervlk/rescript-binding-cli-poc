@@ -28,6 +28,11 @@ let releaseSummary: RegistryAdd.releaseSummary = {
 let releasePayload: RegistryAdd.releasePayload = {
   id: "release-1",
   packageName: "is-even",
+  publisherLogin: "dev@example.com",
+  publisherDisplayName: Some("Dev Example"),
+  peerPackageRange: "1.0.0",
+  rescriptRange: "^12.0.0",
+  createdAt: "2026-05-03T12:00:00.000Z",
   files: [{
     relativePath: "isEven.res",
     content: "@module(\"is-even\")\nexternal isEven: int => bool = \"default\"\n",
@@ -105,7 +110,7 @@ let firstRelease = async (releases, _options) => releases[0]->Belt.Option.getExn
 let ignoreLog = _message => ()
 let firstFileContent = (payload: RegistryAdd.releasePayload) => {
   let file: RegistryTypes.fileEntry = payload.files[0]->Belt.Option.getExn
-  file.content
+  RegistryAdd.contentWithInstallHeader(~release=payload, ~content=file.content)
 }
 
 let run = async () => {
@@ -186,6 +191,11 @@ let run = async () => {
     let scopedPayload: RegistryAdd.releasePayload = {
       id: "scoped-release",
       packageName: "@inquirer/prompts",
+      publisherLogin: "dev@example.com",
+      publisherDisplayName: Some("Dev Example"),
+      peerPackageRange: "^8.4.2",
+      rescriptRange: "^12.0.0",
+      createdAt: "2026-05-03T12:00:00.000Z",
       files: [{relativePath: "prompts.res", content: "let prompts = true\n"}],
     }
 
@@ -209,7 +219,11 @@ let run = async () => {
       NodePath.join4(scopedCwd, "src", "bindings", "InquirerPrompts.res"),
       "utf8",
     )
-    assertStringEquals(installed, "let prompts = true\n", "add defaults scoped packages to PascalCase module filename")
+    assertStringEquals(
+      installed,
+      firstFileContent(scopedPayload),
+      "add defaults scoped packages to PascalCase module filename",
+    )
     await cleanup(scopedCwd)
   } catch {
   | error =>
@@ -222,6 +236,11 @@ let run = async () => {
     let multiPayload: RegistryAdd.releasePayload = {
       id: "multi-release",
       packageName: "is-even",
+      publisherLogin: "dev@example.com",
+      publisherDisplayName: Some("Dev Example"),
+      peerPackageRange: "1.0.0",
+      rescriptRange: "^12.0.0",
+      createdAt: "2026-05-03T12:00:00.000Z",
       files: [
         {relativePath: "nested/fooBinding.res", content: "let foo = true\n"},
         {relativePath: "types/barBinding.resi", content: "let bar: bool\n"},
@@ -249,7 +268,7 @@ let run = async () => {
         NodePath.join4(multiFileCwd, "src", "bindings", "IsEven/nested/FooBinding.res"),
         "utf8",
       ),
-      "let foo = true\n",
+      RegistryAdd.contentWithInstallHeader(~release=multiPayload, ~content="let foo = true\n"),
       "add normalizes nested .res filenames",
     )
     assertStringEquals(
@@ -257,7 +276,7 @@ let run = async () => {
         NodePath.join4(multiFileCwd, "src", "bindings", "IsEven/types/BarBinding.resi"),
         "utf8",
       ),
-      "let bar: bool\n",
+      RegistryAdd.contentWithInstallHeader(~release=multiPayload, ~content="let bar: bool\n"),
       "add normalizes nested .resi filenames",
     )
   })
@@ -267,6 +286,11 @@ let run = async () => {
     let invalidPayload: RegistryAdd.releasePayload = {
       id: "invalid-release",
       packageName: "is-even",
+      publisherLogin: "dev@example.com",
+      publisherDisplayName: Some("Dev Example"),
+      peerPackageRange: "1.0.0",
+      rescriptRange: "^12.0.0",
+      createdAt: "2026-05-03T12:00:00.000Z",
       files: [{relativePath: "bad-name.res", content: "let bad = true\n"}],
     }
     let invalidMessage = ref("")
@@ -300,6 +324,11 @@ let run = async () => {
     let traversalPayload: RegistryAdd.releasePayload = {
       id: "traversal-release",
       packageName: "is-even",
+      publisherLogin: "dev@example.com",
+      publisherDisplayName: Some("Dev Example"),
+      peerPackageRange: "1.0.0",
+      rescriptRange: "^12.0.0",
+      createdAt: "2026-05-03T12:00:00.000Z",
       files: [{relativePath: "../evil.res", content: "let evil = true\n"}],
     }
     let traversalMessage = ref("")

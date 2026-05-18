@@ -27,6 +27,11 @@ type releaseListPayload = {releases: option<array<releaseSummary>>}
 type releasePayload = {
   id: string,
   packageName: string,
+  publisherLogin: string,
+  publisherDisplayName: option<string>,
+  peerPackageRange: string,
+  rescriptRange: string,
+  createdAt: string,
   files: array<fileEntry>,
 }
 
@@ -371,6 +376,40 @@ let fetchRelease = async (~releaseId, ~fetchImpl) => {
   payload
 }
 
+let dateLabel = value =>
+  switch value->String.split("T")->Array.get(0) {
+  | Some(date) =>
+    switch date->String.split("-") {
+    | [year, month, day] => month ++ "/" ++ day ++ "/" ++ year
+    | _ => date
+    }
+  | None => value
+  }
+
+let authorLabel = (release: releasePayload) =>
+  release.publisherDisplayName->Belt.Option.getWithDefault(release.publisherLogin)
+
+let installHeaderFor = (release: releasePayload) =>
+  "/**\n" ++
+  "* Fetched from @jvlk/rescript-bindings\n" ++
+  "* " ++
+  AddPackageName.toModuleName(release.packageName) ++
+  " version: " ++
+  release.peerPackageRange ++
+  "\n" ++
+  "* Rescript version: " ++
+  release.rescriptRange ++
+  "\n" ++
+  "* Author: " ++
+  authorLabel(release) ++
+  "\n" ++
+  "* Last updated: " ++
+  dateLabel(release.createdAt) ++
+  "\n" ++
+  "*/\n\n"
+
+let contentWithInstallHeader = (~release, ~content) => installHeaderFor(release) ++ content
+
 let askInstallFilePath = async (~stdin, ~stdout, ~defaultValue) => {
   if !isTty(isInputTty(stdin)) || !isTty(isOutputTty(stdout)) {
     defaultValue
@@ -561,7 +600,7 @@ let runAddWithDeps = async (
     )
     let targetFiles = release.files->Array.map(file => {
       targetPath: targetPlan.targetPathForFile(file),
-      content: file.content,
+      content: contentWithInstallHeader(~release, ~content=file.content),
     })
     let existingFiles = await existingFilesFrom(targetFiles)
 
