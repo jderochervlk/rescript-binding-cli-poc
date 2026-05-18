@@ -3,9 +3,9 @@
     "private": true,
     "scripts": {
         "res:build": "resscript build",
-        "build": "pnpm --filter @jvlk/rescript-bindings build && pnpm --filter @jvlk/rescript-bindings-web build",
-        "clean": "pnpm --filter @jvlk/rescript-bindings clean && pnpm --filter @jvlk/rescript-bindings-web clean",
-        "test": "pnpm --filter @jvlk/rescript-bindings test && pnpm --filter @jvlk/rescript-bindings-web test"
+        "build": "pnpm --filter @jvlk/rescript-bindings-api build && pnpm --filter @jvlk/rescript-bindings build && pnpm --filter @jvlk/rescript-bindings-web build",
+        "clean": "pnpm --filter @jvlk/rescript-bindings-api clean && pnpm --filter @jvlk/rescript-bindings clean && pnpm --filter @jvlk/rescript-bindings-web clean",
+        "test": "pnpm --filter @jvlk/rescript-bindings-api test && pnpm --filter @jvlk/rescript-bindings test && pnpm --filter @jvlk/rescript-bindings-web test"
     },
     "dependencies": {
         "oxfmt": "^0.49.0"

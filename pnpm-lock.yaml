@@ -12,7 +12,24 @@ importers:
         specifier: ^0.49.0
         version: 0.49.0
 
+  packages/api:
+    dependencies:
+      '@rescript/runtime':
+        specifier: ^12.2.0
+        version: 12.2.0
+    devDependencies:
+      rescript:
+        specifier: ^12.0.0
+        version: 12.2.0
+      wrangler:
+        specifier: ^4.90.0
+        version: 4.90.0
+
   packages/cli:
+    dependencies:
+      '@jvlk/rescript-bindings-api':
+        specifier: workspace:*
+        version: link:../api
     devDependencies:
       '@inquirer/prompts':
         specifier: ^8.4.2
@@ -29,9 +46,6 @@ importers:
       rolldown:
         specifier: ^1.0.0
         version: 1.0.0
-      wrangler:
-        specifier: ^4.90.0
-        version: 4.90.0
 
   packages/skills: {}
 
