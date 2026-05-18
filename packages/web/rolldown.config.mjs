@@ -1,7 +1,7 @@
 import { defineConfig } from "rolldown";
 
 export default defineConfig({
-  input: "src/Worker.res.mjs",
+  input: "src/worker-entry.mjs",
   platform: "browser",
   treeshake: true,
   output: {

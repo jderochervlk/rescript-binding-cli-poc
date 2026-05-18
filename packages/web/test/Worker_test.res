@@ -73,8 +73,10 @@ let run = async () => {
   recentHtml->assertContains("Recently updated", "recent homepage uses approved heading")
   recentHtml->assertContains("Package name", "recent homepage uses approved table header")
   recentHtml->assertContains("Library versions", "recent homepage uses approved library header")
+  recentHtml->assertContains("Last updated", "recent homepage uses approved last updated header")
   recentHtml->assertContains("@scope/recent", "recent homepage renders API entries")
   recentHtml->assertContains("Jane Example", "recent homepage renders author display name")
+  recentHtml->assertContains("2026-05-01", "recent homepage renders latest created date")
 
   let serviceResponse = await Worker.fetch(makeRequest("https://web.test/"), serviceEnv, ctx)
   serviceResponse->assertStatus(200, "public fetch uses registry service binding")

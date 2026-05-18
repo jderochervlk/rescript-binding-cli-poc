@@ -5,6 +5,7 @@ let highlightJsCdn = "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11
 let highlightRescriptCdn = "https://unpkg.com/highlightjs-rescript@0.2.2/dist/rescript.min.js"
 
 @val external encodeURIComponent: string => string = "encodeURIComponent"
+@send external sliceTo: (string, int, int) => string = "slice"
 
 let attr = View.Attr.string
 
@@ -35,6 +36,13 @@ let themeSwitch = () =>
 
 let linkForEntry = (entry: RegistryClient.entry) =>
   "/packages/" ++ encodeURIComponent(entry.packageName) ++ "/authors/" ++ encodeURIComponent(entry.author)
+
+let dateOnly = timestamp =>
+  if timestamp->String.length >= 10 {
+    timestamp->sliceTo(0, 10)
+  } else {
+    timestamp
+  }
 
 let selectedRelease = (
   releases: array<RegistryClient.detailRelease>,
@@ -78,6 +86,7 @@ let entryTable = entries =>
           el("th", ~children=[View.text("Author")], ()),
           el("th", ~children=[View.text("Library versions")], ()),
           el("th", ~children=[View.text("ReScript versions")], ()),
+          el("th", ~children=[View.text("Last updated")], ()),
         ], ()),
       ], ()),
       el("tbody", ~children=entries->Array.map((entry: RegistryClient.entry) =>
@@ -88,6 +97,7 @@ let entryTable = entries =>
           el("td", ~children=[View.text(entry.authorDisplayName)], ()),
           el("td", ~children=[View.text(entry.libraryVersions->Array.join(", "))], ()),
           el("td", ~children=[View.text(entry.rescriptVersions->Array.join(", "))], ()),
+          el("td", ~children=[View.text(dateOnly(entry.latestCreatedAt))], ()),
         ], ())
       ), ()),
     ], ())

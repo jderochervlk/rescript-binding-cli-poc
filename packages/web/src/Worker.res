@@ -17,6 +17,7 @@ type fetcher = RegistryClient.fetcher
 @get external urlSearchParams: url => searchParams = "searchParams"
 @return(nullable) @send external searchParamGet: (searchParams, string) => option<string> = "get"
 @get external registryApiBase: env => option<string> = "REGISTRY_API_BASE"
+@return(nullable) @get external registryApiService: env => option<service> = "REGISTRY_API"
 @send external serviceFetch: (service, request) => promise<response> = "fetch"
 @new external makeResponseExternal: (string, responseInit) => response = "Response"
 @obj external responseInitExternal: (~status: int, ~headers: array<array<string>>, unit) => responseInit = ""
@@ -38,27 +39,16 @@ let html = (~status=200, body) =>
 let apiBase = env =>
   env->registryApiBase->Belt.Option.getWithDefault("https://rescript-binding-registry.josh-401.workers.dev/api")
 
-let hasRegistryApiService = env => {
-  let _ = env
-  %raw(`env.REGISTRY_API != null`)
-}
-
-let registryApiService = env => {
-  let _ = env
-  %raw(`env.REGISTRY_API`)
-}
-
 let registryFetcher = env =>
-  if env->hasRegistryApiService {
-    let service = env->registryApiService
+  switch env->registryApiService {
+  | Some(service) =>
     url => {
       let serviceUrl = makeUrl(url)
       service->serviceFetch(makeServiceRequest(
         "https://registry.internal" ++ serviceUrl->urlPathname ++ serviceUrl->urlSearch,
       ))
     }
-  } else {
-    globalFetch
+  | None => globalFetch
   }
 
 let getAt = (items: array<'a>, index: int): option<'a> =>
@@ -162,5 +152,3 @@ let fetchWith = async (~fetcher: fetcher, request, env, _ctx) => {
 let workerFetch = async (request, env, ctx) => await fetchWith(~fetcher=registryFetcher(env), request, env, ctx)
 
 let fetch = workerFetch
-
-%%raw("export default { fetch: workerFetch }")
