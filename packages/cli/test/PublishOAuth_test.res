@@ -62,8 +62,6 @@ external deps: (
 let authorizationServerMetadataUrl = "https://team.cloudflareaccess.com/.well-known/oauth-authorization-server"
 let resourceMetadataUrl = "https://rescript-binding-registry.josh-401.workers.dev/.well-known/cloudflare-access-protected-resource/api/publish/v1/me"
 let now = 1716000000000.0
-let nullBundle: PublishOAuth.tokenBundle = %raw("null")
-let nullPublishInput: RegistryTypes.publishInput = %raw("null")
 
 let authorizationServerMetadata = {
   "authorization_endpoint": "https://team.cloudflareaccess.com/cdn-cgi/access/oauth/authorization",
@@ -132,7 +130,8 @@ let makeLoopbackServer = (~redirectUri, ~code, ~state): PublishOAuth.loopbackSer
 
 let expectUnexpected = (flowName, url) => throw(Failure("Unexpected URL in " ++ flowName ++ ": " ++ url))
 
-let readCache = bundle => async _cachePath => bundle
+let readCache = bundle => async _cachePath => Some(bundle)
+let readEmptyCache = async _cachePath => None
 let noWriteCache = message => async (_cachePath, _bundle) => throw(Failure(message))
 let noBrowser = message => async _url => throw(Failure(message))
 let noLoopback = message => async _input => throw(Failure(message))
@@ -225,7 +224,11 @@ let run = async () => {
     "refresh",
     "expired access token with refresh token uses refresh path",
   )
-  assertStringEquals(PublishOAuth.selectAuthStrategy(nullBundle, now), "interactive", "missing bundle uses interactive path")
+  assertStringEquals(
+    PublishOAuth.selectAuthStrategyFromOption(None, now),
+    "interactive",
+    "missing bundle uses interactive path",
+  )
 
   let missingBrowserLogs = []
   await PublishOAuth.defaultOpenBrowser(
@@ -550,7 +553,7 @@ let run = async () => {
     ~now=() => now,
     ~platform="linux",
     ~homeDir="/home/josh",
-    ~readCache=readCache(nullBundle),
+    ~readCache=readEmptyCache,
     ~writeCache=async (cachePath, bundle) => savedInteractiveBundle := Some({cachePath, bundle}),
     ~randomString=() => "fixed-state-token",
     ~codeVerifier=() => "fixed-code-verifier",
@@ -592,7 +595,7 @@ let run = async () => {
   let publishCancelLogs = await captureConsoleLog(async () => {
     await PublishOAuth.runPublish(Some(options(~deps=deps(
       ~fetch=async (_url, _init) => throw(Failure("cancelled publish should not call fetch")),
-      ~promptForPublishInput=async _ => nullPublishInput,
+      ~promptForPublishInput=async _ => None,
       (),
     ), ())))
   })
@@ -643,7 +646,7 @@ let run = async () => {
       },
       ~openBrowser=noBrowser("publish with reusable token should not open browser"),
       ~createLoopbackServer=noLoopback("publish with reusable token should not create loopback server"),
-      ~promptForPublishInput=async _ => promptInput,
+      ~promptForPublishInput=async _ => Some(promptInput),
       (),
     ), ())))
   })

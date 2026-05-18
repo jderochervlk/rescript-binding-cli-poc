@@ -26,6 +26,7 @@ type db
 type statement
 type boundStatement
 type accessIdentity
+type accessGrant
 type crypto
 type subtleCrypto
 type textEncoder
@@ -245,7 +246,7 @@ external bind13: (
 ) => boundStatement = "bind"
 @send external all: boundStatement => promise<queryResult<'row>> = "all"
 @send external allStatement: statement => promise<queryResult<'row>> = "all"
-@send external firstRaw: boundStatement => promise<'row> = "first"
+@send external firstRaw: boundStatement => promise<Nullable.t<'row>> = "first"
 @send external run: boundStatement => promise<'result> = "run"
 @send external batch: (db, array<boundStatement>) => promise<array<'result>> = "batch"
 @val @scope("globalThis") external globalCrypto: crypto = "crypto"
@@ -262,9 +263,17 @@ external bind13: (
 @return(nullable) @get external identityGithubLogin: accessIdentity => option<string> = "githubLogin"
 @return(nullable) @get external identityEmail: accessIdentity => option<string> = "email"
 @return(nullable) @get external identityDisplayName: accessIdentity => option<string> = "displayName"
+@obj external accessGrant: (~authenticated: bool, unit) => accessGrant = ""
+@obj
+external accessIdentity: (
+  ~githubLogin: Null.t<string>,
+  ~displayName: Null.t<string>,
+  ~email: string,
+  ~access: accessGrant,
+  unit,
+) => accessIdentity = ""
 
-let nullableToOption = _value => %raw("_value == null ? undefined : _value")
-let first = async statement => nullableToOption(await firstRaw(statement))
+let first = async statement => (await firstRaw(statement))->Nullable.toOption
 
 let getAt = (items: array<'a>, index: int): option<'a> =>
   if index < 0 || index >= items->Array.length {
@@ -431,14 +440,13 @@ let currentIdentity = request => {
       let payload: accessJwtPayload = decodeJwtPayload(assertion)
       switch payload.email {
       | Some(email) =>
-        let _ = email
-        let identity: accessIdentity = %raw(`({
-          githubLogin: null,
-          displayName: null,
-          email,
-          access: { authenticated: true }
-        })`)
-        Some(identity)
+        Some(accessIdentity(
+          ~githubLogin=Null.fromOption(None),
+          ~displayName=Null.fromOption(None),
+          ~email,
+          ~access=accessGrant(~authenticated=true, ()),
+          (),
+        ))
       | None => None
       }
     } catch {
@@ -1325,5 +1333,3 @@ let fetch = async (request, env, _ctx) => {
     }
   }
 }
-
-%%raw("export default { fetch }")

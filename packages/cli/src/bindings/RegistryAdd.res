@@ -71,7 +71,7 @@ external createInterface: {"input": input, "output": output} => readline = "crea
 @send external startsWith: (string, string) => bool = "startsWith"
 @val external encodeURIComponent: string => string = "encodeURIComponent"
 @scope("JSON") @val external parsePackageJson: string => PackageJson.packageJson = "parse"
-external jsonAs: WebFetch.jsonValue => 'a = "%identity"
+@send external responseJsonAs: WebFetch.response => promise<'payload> = "json"
 @val @scope("globalThis") external globalFetch: option<fetchImpl> = "fetch"
 @get external isInputTty: input => option<bool> = "isTTY"
 @get external isOutputTty: output => option<bool> = "isTTY"
@@ -138,13 +138,13 @@ let requireFetch = (fetchImpl: option<fetchImpl>) =>
 
 let readJson = async (response: WebFetch.response): 'payload => {
   if response->WebFetch.ok {
-    (await response->WebFetch.json)->jsonAs
+    await response->responseJsonAs
   } else {
     let contentType =
       response->WebFetch.headers->WebFetch.getHeader("content-type")->Belt.Option.getWithDefault("")
 
     if contentType->includesContentType("application/json") {
-      let payload: errorPayload = (await response->WebFetch.json)->jsonAs
+      let payload: errorPayload = await response->responseJsonAs
       if response->WebFetch.status == 401 && payload.error == Some("invalid_token") {
         fail(
           "Registry read API is protected by Cloudflare Access. Configure Access to protect /api/publish/* only and leave /api/v1/* public.",

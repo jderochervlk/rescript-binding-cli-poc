@@ -68,7 +68,7 @@ type bindingEntriesPayload = {entries: option<array<bindingEntry>>}
 @send external repeat: (string, int) => string = "repeat"
 @send external trim: string => string = "trim"
 @val external encodeURIComponent: string => string = "encodeURIComponent"
-external jsonAs: WebFetch.jsonValue => 'a = "%identity"
+@send external responseJsonAs: WebFetch.response => promise<'payload> = "json"
 @val @scope("globalThis") external globalFetch: option<fetchImpl> = "fetch"
 @new external makeJsError: string => exn = "Error"
 
@@ -84,13 +84,13 @@ let requireFetch = (fetchImpl: option<fetchImpl>) =>
 
 let readJson = async (response: WebFetch.response): 'payload => {
   if response->WebFetch.ok {
-    (await response->WebFetch.json)->jsonAs
+    await response->responseJsonAs
   } else {
     let contentType =
       response->WebFetch.headers->WebFetch.getHeader("content-type")->Belt.Option.getWithDefault("")
 
     if contentType->includesContentType("application/json") {
-      let payload: errorPayload = (await response->WebFetch.json)->jsonAs
+      let payload: errorPayload = await response->responseJsonAs
       fail(
         switch payload.error {
         | Some(error) => error

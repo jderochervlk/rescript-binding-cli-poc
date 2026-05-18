@@ -26,6 +26,8 @@ let messageFromError = error =>
   switch error->JsExn.fromException {
   | Some(jsError) => jsError->JsExn.message->Belt.Option.getWithDefault("")
   | None =>
-    let _ = error
-    %raw(`error?._1 ?? error?.message ?? String(error)`)
+    switch error {
+    | Failure(message) => message
+    | _ => ""
+    }
   }

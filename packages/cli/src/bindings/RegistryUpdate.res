@@ -34,6 +34,15 @@ external deps: (
 @new external makeJsError: string => exn = "Error"
 @send external trim: string => string = "trim"
 @send external includesString: (string, string) => bool = "includes"
+@send external indexOfFrom: (string, string, int) => int = "indexOf"
+@send external indexOf: (string, string) => int = "indexOf"
+@send external sliceFromTo: (string, int, int) => string = "slice"
+@send external sliceFrom: (string, int) => string = "slice"
+@send external charAt: (string, int) => string = "charAt"
+@send external toLowerCase: string => string = "toLowerCase"
+@send external split: (string, string) => array<string> = "split"
+@send external startsWith: (string, string) => bool = "startsWith"
+@send external trimEnd: string => string = "trimEnd"
 
 let fail = message => throw(makeJsError(message))
 
@@ -46,42 +55,117 @@ let requireFetch = (fetchImpl: option<fetchImpl>) =>
 let bindingsFilePath = projectCwd => NodePath.join3(projectCwd, "src", "Bindings.res")
 
 let packageNameFromLabel = label => {
-  let _ = label
-  %raw(`label
-    .replace(/^Binding/, "")
-    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
-    .replace(/([A-Z])([A-Z][a-z])/g, "$1-$2")
-    .toLowerCase()`)
+  let source = if label->startsWith("Binding") {
+    label->sliceFrom(7)
+  } else {
+    label
+  }
+  let output = ref("")
+  let previous = ref("")
+
+  for index in 0 to source->String.length - 1 {
+    let char = source->charAt(index)
+    let next = if index + 1 < source->String.length {
+      source->charAt(index + 1)
+    } else {
+      ""
+    }
+    let isUpper = char != char->toLowerCase
+    let previousIsLowerOrDigit =
+      previous.contents != "" && previous.contents == previous.contents->toLowerCase
+    let nextIsLower = next != "" && next == next->toLowerCase
+
+    if index > 0 && isUpper && (previousIsLowerOrDigit || nextIsLower) {
+      output := output.contents ++ "-"
+    }
+    output := output.contents ++ char->toLowerCase
+    previous := char
+  }
+
+  output.contents
+}
+
+let commentLineValue = (~comment, ~prefix) => {
+  let lines = comment->split("\n")
+  let result = ref(None)
+
+  for index in 0 to lines->Array.length - 1 {
+    switch lines[index] {
+    | Some(line) =>
+      let line = line->trim
+      let line = if line->startsWith("*") {
+        line->sliceFrom(1)->trim
+      } else {
+        line
+      }
+      if result.contents == None && line->startsWith(prefix) {
+        result := Some(line->sliceFrom(prefix->String.length)->trim)
+      }
+    | None => ()
+    }
+  }
+
+  result.contents
 }
 
 let parseInstalledBindings = content => {
-  let _ = (content, packageNameFromLabel)
-  %raw(`(() => {
-    const commentPattern = new RegExp("/[*][*][^]*?Fetched from @jvlk/rescript-bindings[^]*?[*]/", "g");
-    const packagePattern = new RegExp("^[ \\t]*[*][ \\t]*Package:[ \\t]*(.+?)[ \\t]*$", "m");
-    const versionPattern = new RegExp("^[ \\t]*[*][ \\t]*(.+?)[ \\t]+version:[ \\t]*(.+?)[ \\t]*$", "m");
-    const rescriptPattern = new RegExp("^[ \\t]*[*][ \\t]*Rescript version:[ \\t]*(.+?)[ \\t]*$", "m");
-    const matches = [...content.matchAll(commentPattern)];
-    return matches.flatMap((match, index) => {
-      const comment = match[0];
-      const packageLine = comment.match(packagePattern);
-      const versionLine = comment.match(versionPattern);
-      const rescriptLine = comment.match(rescriptPattern);
-      if (!versionLine || !rescriptLine) {
-        return [];
+  let matches: array<(int, string)> = []
+  let cursor = ref(0)
+  let keepScanning = ref(true)
+
+  while keepScanning.contents {
+    let start = content->indexOfFrom("/**", cursor.contents)
+    if start < 0 {
+      keepScanning := false
+    } else {
+      let end_ = content->indexOfFrom("*/", start + 3)
+      if end_ < 0 {
+        keepScanning := false
+      } else {
+        let comment = content->sliceFromTo(start, end_ + 2)
+        if comment->includesString("Fetched from @jvlk/rescript-bindings") {
+          matches->Array.push((start, comment))->ignore
+        }
+        cursor := end_ + 2
       }
-      const label = versionLine[1].trim();
-      const packageName = packageLine ? packageLine[1].trim() : packageNameFromLabel(label);
-      const next = matches[index + 1];
-      return [{
-        packageName,
-        packageRange: versionLine[2].trim(),
-        rescriptRange: rescriptLine[1].trim(),
-        blockStart: match.index,
-        blockEnd: next ? next.index : content.length,
-      }];
-    });
-  })()`)
+    }
+  }
+
+  let bindings: array<installedBinding> = []
+  for index in 0 to matches->Array.length - 1 {
+    switch matches[index] {
+    | Some((blockStart, comment)) =>
+      let version = commentLineValue(~comment, ~prefix="version:")
+      let rescriptRange = commentLineValue(~comment, ~prefix="Rescript version:")
+      switch (version, rescriptRange) {
+      | (Some(versionLine), Some(rescriptRange)) =>
+        let versionSeparator = versionLine->indexOf(" version:")
+        if versionSeparator >= 0 {
+          let label = versionLine->sliceFromTo(0, versionSeparator)->trim
+          let packageRange = versionLine->sliceFrom(versionSeparator + 9)->trim
+          let packageName = switch commentLineValue(~comment, ~prefix="Package:") {
+          | Some(packageName) => packageName
+          | None => packageNameFromLabel(label)
+          }
+          let blockEnd = switch matches[index + 1] {
+          | Some((nextBlockStart, _)) => nextBlockStart
+          | None => content->String.length
+          }
+          bindings->Array.push({
+            packageName,
+            packageRange,
+            rescriptRange,
+            blockStart,
+            blockEnd,
+          })->ignore
+        }
+      | _ => ()
+      }
+    | None => ()
+    }
+  }
+
+  bindings
 }
 
 let isUpdatedRelease = (~binding: installedBinding, ~release: RegistryAdd.releaseSummary) =>
@@ -125,18 +209,20 @@ let replacementFor = async (~plan, ~fetchImpl) => {
 }
 
 let applyReplacements = (content, replacements: array<(installedBinding, string)>) => {
-  let _ = (content, replacements)
-  %raw(`(() => {
-    let output = "";
-    let cursor = 0;
-    for (const [binding, replacement] of replacements) {
-      output += content.slice(cursor, binding.blockStart);
-      output += replacement.trimEnd() + "\\n";
-      cursor = binding.blockEnd;
+  let output = ref("")
+  let cursor = ref(0)
+
+  for index in 0 to replacements->Array.length - 1 {
+    switch replacements[index] {
+    | Some((binding, replacement)) =>
+      output := output.contents ++ content->sliceFromTo(cursor.contents, binding.blockStart)
+      output := output.contents ++ replacement->trimEnd ++ "\n"
+      cursor := binding.blockEnd
+    | None => ()
     }
-    output += content.slice(cursor);
-    return output;
-  })()`)
+  }
+
+  output.contents ++ content->sliceFrom(cursor.contents)
 }
 
 let runUpdateWithDeps = async deps => {

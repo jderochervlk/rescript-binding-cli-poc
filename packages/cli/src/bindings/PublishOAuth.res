@@ -18,12 +18,14 @@ type session = {
 type loopbackServer
 type loopbackInput
 type callback
+type childProcess
+type spawnOptions
 type httpServer
 type httpRequest
 type httpResponse
 type serverAddress
 type errorPayload
-type spawnImpl
+type spawnImpl = (string, array<string>, spawnOptions) => childProcess
 type input
 type output
 type promptInput
@@ -31,6 +33,7 @@ type readline
 type readlineOptions
 type searchConfig
 type searchChoice
+type identityPayload
 type promptContext
 type url
 type searchParams
@@ -55,13 +58,13 @@ type deleteReleaseResult = {
 type fetchImpl = (string, fetchInit) => promise<WebFetch.response>
 type logImpl = string => unit
 type nowImpl = unit => float
-type readCacheImpl = string => promise<tokenBundle>
+type readCacheImpl = string => promise<option<tokenBundle>>
 type writeCacheImpl = (string, tokenBundle) => promise<unit>
 type openBrowserImpl = string => promise<unit>
 type createLoopbackServerImpl = loopbackInput => promise<loopbackServer>
 type stringFactory = unit => string
 type codeChallengeImpl = string => string
-type promptForPublishInputImpl = promptInput => promise<publishInput>
+type promptForPublishInputImpl = promptInput => promise<option<publishInput>>
 type selectDeleteReleaseImpl = (array<publishedRelease>, bool, input, output) => promise<option<publishedRelease>>
 type confirmDeleteReleaseImpl = (publishedRelease, input, output) => promise<bool>
 type completer = string => (array<string>, string)
@@ -89,7 +92,7 @@ external readdirSync: (string, NodeFs.readdirOptions) => array<NodeFs.dirent> = 
 @scope("JSON") @val external stringify: 'a => string = "stringify"
 @val @scope("globalThis") external globalFetch: option<fetchImpl> = "fetch"
 @val external encodeURIComponent: string => string = "encodeURIComponent"
-external unsafeJson: WebFetch.jsonValue => 'a = "%identity"
+@send external responseJsonAs: WebFetch.response => promise<'payload> = "json"
 @new external makeUrl: string => url = "URL"
 @new external makeUrlWithBase: (string, string) => url = "URL"
 @get external urlHostname: url => string = "hostname"
@@ -106,6 +109,8 @@ external unsafeJson: WebFetch.jsonValue => 'a = "%identity"
 @send external toLowerCase: string => string = "toLowerCase"
 @send external replaceAll: (string, string, string) => string = "replaceAll"
 @send external includesString: (string, string) => bool = "includes"
+@send external indexOfFrom: (string, string, int) => int = "indexOf"
+@send external sliceFromTo: (string, int, int) => string = "slice"
 @send external startsWith: (string, string) => bool = "startsWith"
 @send external endsWith: (string, string) => bool = "endsWith"
 @send external localeCompare: (string, string) => int = "localeCompare"
@@ -118,15 +123,28 @@ external unsafeJson: WebFetch.jsonValue => 'a = "%identity"
 @send external httpServerOnceError: (httpServer, string, exn => unit) => httpServer = "once"
 @send external httpServerListen: (httpServer, int, string, unit => unit) => httpServer = "listen"
 @return(nullable) @send external httpServerAddress: httpServer => option<serverAddress> = "address"
-@send external httpServerClose: (httpServer, exn => unit) => httpServer = "close"
+@send external httpServerClose: (httpServer, Nullable.t<exn> => unit) => httpServer = "close"
 @get external serverAddressPort: serverAddress => int = "port"
 @get external inputIsTty: input => option<bool> = "isTTY"
 @get external outputIsTty: output => option<bool> = "isTTY"
 @get external jsErrorStatus: JsExn.t => option<int> = "status"
 @get external jsErrorPayload: JsExn.t => option<errorPayload> = "payload"
 @new external makeJsError: string => exn = "Error"
+@set external setErrorStatus: (exn, int) => unit = "status"
+@set external setErrorPayload: (exn, option<errorPayload>) => unit = "payload"
 
 @obj external emptyFetchInit: unit => fetchInit = ""
+@obj external emptyDeps: unit => deps = ""
+@obj external emptyPackageJson: unit => PackageJson.packageJson = ""
+@obj external spawnOptions: (~stdio: string, unit) => spawnOptions = ""
+@obj external jsonHeadersObj: (@as("Content-Type") ~contentType: string, unit) => headersInit = ""
+@obj external authHeadersObj: (@as("Authorization") ~authorization: string, unit) => headersInit = ""
+@obj
+external publishHeadersObj: (
+  @as("Authorization") ~authorization: string,
+  @as("Content-Type") ~contentType: string,
+  unit,
+) => headersInit = ""
 @obj external getDiscoveryFetchInit: (~method: string, ~redirect: string, unit) => fetchInit = ""
 @obj
 external postFetchInit: (~method: string, ~headers: headersInit, ~body: string, unit) => fetchInit =
@@ -153,6 +171,19 @@ external searchConfig: (
 @obj external loopbackInput: (~expectedState: string, unit) => loopbackInput = ""
 @obj external oauthCallbackInputObj: (~callbackUrl: url, ~expectedState: string, unit) => oauthCallbackInput = ""
 @obj external loopbackCallbackObj: (~code: string, ~state: string, unit) => callback = ""
+@obj
+external tokenBundleObj: (
+  ~accessToken: string,
+  ~refreshToken: option<string>,
+  ~expiresAt: float,
+  ~tokenEndpoint: string,
+  ~authorizationEndpoint: string,
+  ~registrationEndpoint: string,
+  ~clientId: string,
+  ~resource: string,
+  ~publishBaseUrl: string,
+  unit,
+) => tokenBundle = ""
 @obj
 external loopbackServerObj: (
   ~redirectUri: string,
@@ -225,6 +256,12 @@ external depConfirmDeleteRelease: deps => option<confirmDeleteReleaseImpl> =
 @get external callbackCode: callback => string = "code"
 @get external errorPayloadError: errorPayload => option<string> = "error"
 @get external errorPayloadMessage: errorPayload => option<string> = "message"
+@get external choiceName: searchChoice => string = "name"
+@return(nullable) @get
+external identityPayloadGithubLogin: identityPayload => option<string> = "githubLogin"
+@return(nullable) @get
+external identityPayloadDisplayName: identityPayload => option<string> = "displayName"
+@return(nullable) @get external identityPayloadEmail: identityPayload => option<string> = "email"
 @get external publishResultDuplicate: 'result => bool = "duplicate"
 @get external publishResultReleaseId: 'result => string = "releaseId"
 @get external publishResultPackageName: 'result => string = "packageName"
@@ -232,27 +269,22 @@ external depConfirmDeleteRelease: deps => option<confirmDeleteReleaseImpl> =
 
 @module("@inquirer/prompts")
 external search: (searchConfig, promptContext) => promise<string> = "search"
+@send external childOnceError: (childProcess, string, exn => unit) => childProcess = "once"
+@send external childOnceClose: (childProcess, string, int => unit) => childProcess = "once"
 
 let publishBaseUrl = RegistryConfig.publishBaseUrl
 let oauthResource = RegistryConfig.oauthResource
 
-let nullableToOption = _value => %raw("_value == null ? undefined : _value")
-let emptyDeps = (): deps => %raw("({})")
-let jsonHeaders = (): headersInit => %raw(`({ "Content-Type": "application/json" })`)
+let jsonHeaders = (): headersInit => jsonHeadersObj(~contentType="application/json", ())
 let formHeaders = (): headersInit =>
-  %raw(`({ "Content-Type": "application/x-www-form-urlencoded" })`)
-let authHeaders = token => {
-  let _ = token
-  %raw(`({ Authorization: "Bearer " + token })`)
-}
-let publishHeaders = token => {
-  let _ = token
-  %raw(`({ Authorization: "Bearer " + token, "Content-Type": "application/json" })`)
-}
+  jsonHeadersObj(~contentType="application/x-www-form-urlencoded", ())
+let authHeaders = token => authHeadersObj(~authorization="Bearer " ++ token, ())
+let publishHeaders = token =>
+  publishHeadersObj(~authorization="Bearer " ++ token, ~contentType="application/json", ())
 
 let fail = message => throw(makeJsError(message))
 
-let throwJsError = (_error): 'a => %raw(`(() => { throw _error })()`)
+let throwJsError = error => JsExn.throw(error)
 
 let rethrowCaught = error =>
   switch error->JsExn.fromException {
@@ -305,8 +337,7 @@ let isAccessTokenUsableFromOption = (bundle, now) =>
   | None => false
   }
 
-let isAccessTokenUsable = (bundle, now) =>
-  isAccessTokenUsableFromOption(nullableToOption(bundle), now)
+let isAccessTokenUsable = (bundle, now) => isAccessTokenUsableFromOption(Some(bundle), now)
 
 let selectAuthStrategyFromOption = (bundle, now) =>
   PublishTokenStrategy.selectName(
@@ -317,8 +348,7 @@ let selectAuthStrategyFromOption = (bundle, now) =>
     },
   )
 
-let selectAuthStrategy = (bundle, now) =>
-  selectAuthStrategyFromOption(nullableToOption(bundle), now)
+let selectAuthStrategy = (bundle, now) => selectAuthStrategyFromOption(Some(bundle), now)
 
 let codeChallengeFromVerifier = verifier =>
   createHash("sha256")->hashUpdate(verifier)->hashDigest("base64url")
@@ -328,9 +358,9 @@ let defaultCodeVerifier = () => randomBytes(48)->bufferToString("base64url")
 
 let defaultReadCache: readCacheImpl = async cachePath => {
   try {
-    (await NodeFs.readFileUtf8(cachePath, "utf8"))->parseJson
+    Some((await NodeFs.readFileUtf8(cachePath, "utf8"))->parseJson)
   } catch {
-  | _ => %raw("null")
+  | _ => None
   }
 }
 
@@ -348,12 +378,12 @@ let browserOpenCommand = (targetPlatform, url) =>
     ("xdg-open", [url])
   }
 
-let waitForBrowserOpen = (_spawnImpl, _commandName, _commandArgs) =>
-  %raw(`new Promise(resolve => {
-    const child = _spawnImpl(_commandName, _commandArgs, { stdio: "ignore" });
-    child.once("error", () => resolve(false));
-    child.once("close", code => resolve(code === 0));
-  })`)
+let waitForBrowserOpen = (spawnImpl, commandName, commandArgs) =>
+  Promise.make((resolve, _reject) => {
+    let child = spawnImpl(commandName, commandArgs, spawnOptions(~stdio="ignore", ()))
+    child->childOnceError("error", _error => resolve(false))->ignore
+    child->childOnceClose("close", code => resolve(code == 0))->ignore
+  })
 
 let defaultOpenBrowser = async (url, maybeOptions: option<openOptions>) => {
   let targetPlatform = switch maybeOptions {
@@ -460,7 +490,7 @@ let defaultCreateLoopbackServer = async (input: loopbackInput) => {
       Promise.make((resolve, reject) => {
         server
         ->httpServerClose(error => {
-          switch nullableToOption(error) {
+          switch error->Nullable.toOption {
           | Some(error) => reject(error)
           | None => resolve(())
           }
@@ -472,22 +502,21 @@ let defaultCreateLoopbackServer = async (input: loopbackInput) => {
 }
 
 let raiseHttpError = (~message, ~status, ~payload: option<errorPayload>) => {
-  let _ = message
-  let _ = status
-  let _ = payload
-  let error = %raw(`Object.assign(new Error(message), { status, payload })`)
-  throwJsError(error)
+  let error = makeJsError(message)
+  error->setErrorStatus(status)
+  error->setErrorPayload(payload)
+  throw(error)
 }
 
 let readJson = async (response: WebFetch.response): 'payload => {
   if response->WebFetch.ok {
-    (await response->WebFetch.json)->unsafeJson
+    await response->responseJsonAs
   } else {
     let contentType =
       response->WebFetch.headers->WebFetch.getHeader("content-type")->Belt.Option.getWithDefault("")
 
     if contentType->includesString("application/json") {
-      let payload: errorPayload = (await response->WebFetch.json)->unsafeJson
+      let payload: errorPayload = await response->responseJsonAs
       let message = switch payload->errorPayloadError {
       | Some(error) => error
       | None =>
@@ -543,12 +572,20 @@ let isInteractiveRecoveryError = error =>
     }
   }
 
-let parseResourceMetadataUrl = _header => {
-  let value: option<string> = %raw(`(() => {
-    const match = _header?.match(/resource_metadata="([^"]+)"/);
-    return match?.[1];
-  })()`)
-  value
+let parseResourceMetadataUrl = header => {
+  let marker = "resource_metadata=\""
+  let start = header->indexOfFrom(marker, 0)
+  if start < 0 {
+    None
+  } else {
+    let valueStart = start + marker->String.length
+    let valueEnd = header->indexOfFrom("\"", valueStart)
+    if valueEnd < 0 {
+      None
+    } else {
+      Some(header->sliceFromTo(valueStart, valueEnd))
+    }
+  }
 }
 
 let authorizationServerMetadataUrlFrom = authorizationServer => {
@@ -668,33 +705,24 @@ let buildTokenBundle = (~tokenResponse, ~metadata, ~clientId, ~now, ~previous) =
     | None => None
     }
   }
-  let _ = tokenResponse
-  let _ = metadata
-  let _ = clientId
-  let _ = now
-  let _ = refreshToken
-  let bundle: tokenBundle = %raw(`({
-    accessToken: tokenResponse.access_token,
-    refreshToken,
-    expiresAt: now + tokenResponse.expires_in * 1000,
-    tokenEndpoint: metadata.token_endpoint,
-    authorizationEndpoint: metadata.authorization_endpoint,
-    registrationEndpoint: metadata.registration_endpoint,
-    clientId,
-    resource: oauthResource,
-    publishBaseUrl,
-  })`)
-  bundle
+  tokenBundleObj(
+    ~accessToken=tokenResponse->tokenResponseAccessToken,
+    ~refreshToken,
+    ~expiresAt=now +. tokenResponse->tokenResponseExpiresIn *. 1000.0,
+    ~tokenEndpoint=metadata->metadataTokenEndpoint,
+    ~authorizationEndpoint=metadata->metadataAuthorizationEndpoint,
+    ~registrationEndpoint=metadata->metadataRegistrationEndpoint,
+    ~clientId,
+    ~resource=oauthResource,
+    ~publishBaseUrl,
+    (),
+  )
 }
 
-let normalizeIdentity = identity => {
-  let _ = identity
-  let result: PublishAuthTypes.authIdentity = %raw(`({
-    githubLogin: identity.githubLogin ?? undefined,
-    displayName: identity.displayName ?? undefined,
-    email: identity.email ?? undefined,
-  })`)
-  result
+let normalizeIdentity = (identity: identityPayload): PublishAuthTypes.authIdentity => {
+  githubLogin: identity->identityPayloadGithubLogin,
+  displayName: identity->identityPayloadDisplayName,
+  email: identity->identityPayloadEmail,
 }
 
 let fetchCurrentIdentity = async (~accessToken, ~fetchImpl) => {
@@ -702,7 +730,8 @@ let fetchCurrentIdentity = async (~accessToken, ~fetchImpl) => {
     publishBaseUrl ++ "/v1/me",
     getAuthFetchInit(~method="GET", ~headers=authHeaders(accessToken), ()),
   )
-  normalizeIdentity(await readJson(response))
+  let identity: identityPayload = await readJson(response)
+  normalizeIdentity(identity)
 }
 
 let fetchCurrentSession = async (~accessToken, ~fetchImpl) => {
@@ -745,7 +774,7 @@ let runPublishAuthSession = async (maybeOptions: option<options>) => {
     ->Belt.Option.getWithDefault(codeChallengeFromVerifier)
   let hostname = makeUrl(publishBaseUrl)->urlHostname
   let cachePath = cacheFilePathFor(cacheInputObj(~platform=targetPlatform, ~homeDir, ~hostname, ()))
-  let cachedBundle = nullableToOption(await readCache(cachePath))
+  let cachedBundle = await readCache(cachePath)
   let strategy = selectAuthStrategyFromOption(cachedBundle, now())
   let metadataCache: ref<option<metadata>> = ref(None)
 
@@ -897,7 +926,7 @@ let readProjectPackageJson = async projectCwd => {
   try {
     (await NodeFs.readFileUtf8(packageJsonPath, "utf8"))->parseJson
   } catch {
-  | _ => %raw("({})")
+  | _ => emptyPackageJson()
   }
 }
 
@@ -1008,10 +1037,7 @@ let defaultSelectDeleteRelease: selectDeleteReleaseImpl = async (releases, inclu
           if input == "" {
             choices
           } else {
-            choices->Array.filter(choice => {
-              let _ = choice
-              %raw(`choice.name.toLowerCase().includes(input)`)
-            })
+            choices->Array.filter(choice => choice->choiceName->toLowerCase->includesString(input))
           }
         },
         (),
@@ -1216,16 +1242,16 @@ let promptForPublishInput: promptForPublishInputImpl = async (input: promptInput
   Console.log("")
 
   if await confirmPublishWith(~stdin=promptStdin, ~stdout=promptStdout) {
-    {
+    Some({
       packageName,
       variantLabel,
       peerPackageRange,
       rescriptRange,
       description: None,
       files,
-    }
+    })
   } else {
-    %raw("null")
+    None
   }
 }
 
@@ -1277,9 +1303,7 @@ let runPublish = async maybeOptions => {
   let prompt = deps->depPromptForPublishInput->Belt.Option.getWithDefault(promptForPublishInput)
   let promptStdin = deps->depStdin->Belt.Option.getWithDefault(stdin)
   let promptStdout = deps->depStdout->Belt.Option.getWithDefault(stdout)
-  let input = nullableToOption(
-    await prompt(promptInputObj(~cwd=projectCwd, ~stdin=promptStdin, ~stdout=promptStdout, ())),
-  )
+  let input = await prompt(promptInputObj(~cwd=projectCwd, ~stdin=promptStdin, ~stdout=promptStdout, ()))
 
   switch input {
   | None => Console.log("Publish cancelled.")
