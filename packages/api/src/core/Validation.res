@@ -15,6 +15,16 @@ let maxTotalBytes = 2 * 1024 * 1024
 @send external sliceRange: (string, int, int) => string = "slice"
 @send external replaceAll: (string, string, string) => string = "replaceAll"
 @send external toLowerCase: string => string = "toLowerCase"
+@new external makeRegExp: string => RegExp.t = "RegExp"
+
+let semverRangePattern = makeRegExp(
+  "^(?:(?:\\^|~|=|>=|<=|>|<)?\\d+(?:\\.\\d+){0,2})(?:\\s+(?:\\^|~|=|>=|<=|>|<)?\\d+(?:\\.\\d+){0,2})*$",
+)
+
+let versionRangeSchema =
+  S.string
+  ->S.trim
+  ->S.pattern(semverRangePattern, ~message="Expected a semver version or range")
 
 type semverCore = {
   major: int,
@@ -66,6 +76,50 @@ let normalizeMinimumRange = value => {
   }
 }
 
+let versionTextFromParts = parts => {
+  switch parts[0] {
+  | Some(major) =>
+    let minor = parts[1]->Belt.Option.getWithDefault("0")
+    let patch = parts[2]->Belt.Option.getWithDefault("0")
+    major ++ "." ++ minor ++ "." ++ patch
+  | None => throw(ValidationError("Invalid semver range fields"))
+  }
+}
+
+let normalizeVersionRangeToken = value => {
+  let trimmed = value->trim
+  let (prefix, versionText) = if trimmed->startsWith(">=") || trimmed->startsWith("<=") {
+    (trimmed->sliceRange(0, 2), trimmed->sliceToEnd(2)->trim)
+  } else if (
+    trimmed->startsWith("^") ||
+    trimmed->startsWith("~") ||
+    trimmed->startsWith("=") ||
+    trimmed->startsWith(">") ||
+    trimmed->startsWith("<")
+  ) {
+    (trimmed->sliceRange(0, 1), trimmed->sliceToEnd(1)->trim)
+  } else {
+    ("", trimmed)
+  }
+
+  prefix ++ versionText->split(".")->versionTextFromParts
+}
+
+let normalizeVersionRange = value => {
+  let trimmed =
+    try {
+      value->S.parseOrThrow(~to=versionRangeSchema)
+    } catch {
+    | _ => throw(ValidationError("Invalid semver range fields"))
+    }
+
+  trimmed
+  ->split(" ")
+  ->Array.filter(part => part != "")
+  ->Array.map(normalizeVersionRangeToken)
+  ->Array.join(" ")
+}
+
 let rangesAreCloseCompatible = (left, right) => {
   let left = left->trim
   let right = right->trim
@@ -107,7 +161,13 @@ let normalizeRelativePath = (inputPath: string): string => {
 
 let hasAllowedExt = (path: string) => endsWith(path, ".res") || endsWith(path, ".resi")
 
-let rangeLooksValid = (range: string): bool => trim(range) != ""
+let rangeLooksValid = (range: string): bool =>
+  try {
+    let _ = normalizeVersionRange(range)
+    true
+  } catch {
+  | ValidationError(_) => false
+  }
 
 let safeSlug = (value: string): string => {
   let base = value->toLowerCase->trim

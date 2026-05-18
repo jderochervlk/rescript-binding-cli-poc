@@ -143,6 +143,8 @@ let duplicatePublishDb: Worker.env = %raw(`({
 })`)
 
 let overwrittenUpdateCount = ref(0)
+let insertedPeerPackageRange = ref("")
+let insertedRescriptRange = ref("")
 let overwritePublishDb: Worker.env = %raw(`({
   DB: {
     prepare: sql => ({
@@ -184,6 +186,11 @@ let overwritePublishDb: Worker.env = %raw(`({
         statement.__params[0] === "overwritten" &&
         statement.__params[1] === "old-compatible"
       ).length;
+      const insert = statements.find(statement => statement.__sql.includes("INSERT INTO binding_releases"));
+      if (insert) {
+        insertedPeerPackageRange.contents = insert.__params[6];
+        insertedRescriptRange.contents = insert.__params[7];
+      }
       return [];
     },
   },
@@ -407,8 +414,8 @@ let run = async () => {
         ~body=TestSupport.stringify({
           "packageName": "@inquirer/prompts",
           "variantLabel": "default",
-          "peerPackageRange": "^7.1.0",
-          "rescriptRange": "^12.1.0",
+          "peerPackageRange": ">=7.1 <8",
+          "rescriptRange": "12",
           "files": [{"relativePath": "Binding.res", "content": "let x = 1\n"}],
         }),
         (),
@@ -427,6 +434,16 @@ let run = async () => {
     (overwritePublishBody->overwrittenReleaseIds)[0]->Belt.Option.getExn,
     "old-compatible",
     "compatible overwrite matches package and ReScript major lines",
+  )
+  TestSupport.assertStringEquals(
+    insertedPeerPackageRange.contents,
+    ">=7.1.0 <8.0.0",
+    "publish normalizes package version range before insert",
+  )
+  TestSupport.assertStringEquals(
+    insertedRescriptRange.contents,
+    "12.0.0",
+    "publish normalizes ReScript version range before insert",
   )
   TestSupport.assertTrue(
     overwrittenUpdateCount.contents == 1,

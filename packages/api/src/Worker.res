@@ -477,8 +477,8 @@ let normalizePublishPayload = (payload: publishPayload): publishInput => {
   {
     packageName: stringField(payload.packageName, "packageName"),
     variantLabel: stringField(payload.variantLabel, "variantLabel"),
-    peerPackageRange: stringField(payload.peerPackageRange, "peerPackageRange"),
-    rescriptRange: stringField(payload.rescriptRange, "rescriptRange"),
+    peerPackageRange: stringField(payload.peerPackageRange, "peerPackageRange")->Validation.normalizeVersionRange,
+    rescriptRange: stringField(payload.rescriptRange, "rescriptRange")->Validation.normalizeVersionRange,
     description: switch payload.description {
     | Some(description) =>
       let trimmed = description->trim

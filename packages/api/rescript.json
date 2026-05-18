@@ -15,6 +15,8 @@
     "module": "esmodule",
     "in-source": true
   },
+  "dependencies": ["sury"],
+  "ppx-flags": ["sury-ppx/bin"],
   "suffix": ".res.mjs",
   "warnings": {
     "number": "+A-44-102",

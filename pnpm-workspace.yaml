@@ -3,4 +3,5 @@ packages:
 allowBuilds:
   esbuild: true
   sharp: true
+  sury-ppx: true
   workerd: true
