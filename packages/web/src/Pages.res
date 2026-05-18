@@ -1,4 +1,7 @@
 let picoCdn = "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
+let highlightCssCdn = "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/styles/github.min.css"
+let highlightJsCdn = "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/highlight.min.js"
+let highlightRescriptCdn = "https://unpkg.com/highlightjs-rescript@0.2.2/dist/rescript.min.js"
 
 @val external encodeURIComponent: string => string = "encodeURIComponent"
 
@@ -155,7 +158,9 @@ let detailPage = (
       ], ()),
       el("p", ~children=[View.text(selected.description->Nullable.getOr(""))], ()),
       el("pre", ~children=[
-        el("code", ~children=[View.text(sourceForFiles(selected.files))], ()),
+        el("code", ~attrs=[attr("class", "language-rescript")], ~children=[
+          View.text(sourceForFiles(selected.files)),
+        ], ()),
       ], ()),
     ], ())
   }
@@ -168,7 +173,7 @@ let messagePage = (~title, ~message) => () =>
 
 let document = (~title: string, body: unit => View.node) =>
   SSR.renderDocument(
-    ~head=`<title>${SSR.Html.escape(title)}</title><meta name="color-scheme" content="light dark" />`,
-    ~styles=[picoCdn],
+    ~head=`<title>${SSR.Html.escape(title)}</title><meta name="color-scheme" content="light dark" /><script src="${SSR.Html.escape(highlightJsCdn)}"></script><script src="${SSR.Html.escape(highlightRescriptCdn)}"></script><script>hljs.highlightAll();</script>`,
+    ~styles=[picoCdn, highlightCssCdn],
     body,
   )
