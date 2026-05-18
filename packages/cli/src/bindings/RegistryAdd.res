@@ -53,7 +53,8 @@ type targetPlan = {
 @module("node:process") external stdin: input = "stdin"
 @module("node:process") external stdout: output = "stdout"
 @module("node:process") external cwd: unit => string = "cwd"
-@module("node:readline/promises") external createInterface: {. "input": input, "output": output} => readline = "createInterface"
+@module("node:readline/promises")
+external createInterface: {"input": input, "output": output} => readline = "createInterface"
 @send external question: (readline, string) => promise<string> = "question"
 @send external close: readline => unit = "close"
 @send external write: (output, string) => bool = "write"
@@ -92,7 +93,8 @@ external selectConfig: (
   ~choices: array<releaseChoice>,
   unit,
 ) => selectConfig = ""
-@obj external promptOptions: (~stdin: input, ~stdout: output, ~log: logImpl, unit) => promptOptions = ""
+@obj
+external promptOptions: (~stdin: input, ~stdout: output, ~log: logImpl, unit) => promptOptions = ""
 
 @get external depFetch: deps => option<fetchImpl> = "fetch"
 @get external depCwd: deps => option<string> = "cwd"
@@ -103,12 +105,23 @@ external selectConfig: (
 @get external depConfirmOverwrite: deps => option<confirmOverwriteImpl> = "confirmOverwrite"
 @get external promptLog: promptOptions => logImpl = "log"
 
-@module("@inquirer/prompts") external search: (searchConfig, promptContext) => promise<string> = "search"
-@module("@inquirer/prompts") external select: (selectConfig, promptContext) => promise<releaseSummary> = "select"
+@module("@inquirer/prompts")
+external search: (searchConfig, promptContext) => promise<string> = "search"
+@module("@inquirer/prompts")
+external select: (selectConfig, promptContext) => promise<releaseSummary> = "select"
 
 let registryApiBaseUrl = RegistryConfig.registryApiBaseUrl
 
 let fail = message => throw(makeJsError(message))
+
+let clearConsole = stdout => write(stdout, "\x1b[2J\x1b[3J\x1b[H")->ignore
+
+let clearConsoleOnce = (~cleared, ~stdout) => {
+  if !cleared.contents {
+    clearConsole(stdout)
+    cleared := true
+  }
+}
 
 let isTty = (streamTty: option<bool>) => streamTty->Belt.Option.getWithDefault(false)
 
@@ -122,7 +135,8 @@ let readJson = async (response: WebFetch.response): 'payload => {
   if response->WebFetch.ok {
     (await response->WebFetch.json)->jsonAs
   } else {
-    let contentType = response->WebFetch.headers->WebFetch.getHeader("content-type")->Belt.Option.getWithDefault("")
+    let contentType =
+      response->WebFetch.headers->WebFetch.getHeader("content-type")->Belt.Option.getWithDefault("")
 
     if contentType->includesContentType("application/json") {
       let payload: errorPayload = (await response->WebFetch.json)->jsonAs
@@ -144,11 +158,13 @@ let readJson = async (response: WebFetch.response): 'payload => {
       )
     } else {
       let body = await response->WebFetch.text
-      fail(if body == "" {
-        "HTTP " ++ response->WebFetch.status->Int.toString
-      } else {
-        body
-      })
+      fail(
+        if body == "" {
+          "HTTP " ++ response->WebFetch.status->Int.toString
+        } else {
+          body
+        },
+      )
     }
   }
 }
@@ -183,7 +199,8 @@ let askRequired = async (~stdin, ~stdout, questionText) => {
 }
 
 let askWithDefault = async (~stdin, ~stdout, questionText, defaultValue) => {
-  let answer = (await askWithReadline(~stdin, ~stdout, questionText ++ " [" ++ defaultValue ++ "]: "))->trim
+  let answer =
+    (await askWithReadline(~stdin, ~stdout, questionText ++ " [" ++ defaultValue ++ "]: "))->trim
   if answer == "" {
     defaultValue
   } else {
@@ -205,11 +222,11 @@ let selectPackageName = async (~packageNames, ~stdin, ~stdout) => {
   }
 
   if packageNames->Array.length == 0 {
-    await askRequired(~stdin, ~stdout, "Package name: ")
+    await askRequired(~stdin, ~stdout, "Foo bar")
   } else {
     await search(
       searchConfig(
-        ~message="Package name",
+        ~message="What package do you want to get bindings for?",
         ~pageSize=8,
         ~source=async (term, _) => {
           let input = term->Belt.Option.getWithDefault("")->trim
@@ -219,7 +236,10 @@ let selectPackageName = async (~packageNames, ~stdin, ~stdout) => {
             ->Array.map(packageName => searchChoice(~name=packageName, ~value=packageName, ()))
 
           if input != "" && !(packageNames->Array.some(packageName => packageName == input)) {
-            Array.concat(matches, [searchChoice(~name="Use custom package \"" ++ input ++ "\"", ~value=input, ())])
+            Array.concat(
+              matches,
+              [searchChoice(~name="Use custom package \"" ++ input ++ "\"", ~value=input, ())],
+            )
           } else {
             matches
           }
@@ -242,15 +262,17 @@ let releaseRow = (release: releaseSummary) => {
 }
 
 let tableWidth = (rows, key, label) =>
-  rows
-  ->Array.reduce(label->String.length, (width, row) => {
+  rows->Array.reduce(label->String.length, (width, row) => {
     let value = key(row)
     max(width, value->String.length)
   })
 
 let releaseChoiceName = (~authorWidth, ~packageWidth, ~row: AddReleaseTable.row) =>
   row.author->padEnd(authorWidth) ++
-  "  " ++ row.packageText->padEnd(packageWidth) ++ "  " ++ row.rescriptText
+  "  " ++
+  row.packageText->padEnd(packageWidth) ++
+  "  " ++
+  row.rescriptText
 
 let defaultSelectRelease = async (releases, options) => {
   let promptStdout = depStdout(emptyDeps())->Belt.Option.getWithDefault(stdout)
@@ -263,7 +285,8 @@ let defaultSelectRelease = async (releases, options) => {
   let rows = releases->Array.map(releaseRow)
   let authorWidth = tableWidth(rows, row => row.author, "Author")
   let packageWidth = tableWidth(rows, row => row.packageText, "Package")
-  let header = "  " ++ "Author"->padEnd(authorWidth) ++ "  " ++ "Package"->padEnd(packageWidth) ++ "  ReScript"
+  let header =
+    "  " ++ "Author"->padEnd(authorWidth) ++ "  " ++ "Package"->padEnd(packageWidth) ++ "  ReScript"
 
   let log = promptLog(options)
   log("Available binding releases:")
@@ -276,7 +299,11 @@ let defaultSelectRelease = async (releases, options) => {
       ~loop=true,
       ~choices=releases->Array.mapWithIndex((release, index) => {
         let row = rows[index]->Belt.Option.getExn
-        releaseChoice(~name=releaseChoiceName(~authorWidth, ~packageWidth, ~row), ~value=release, ())
+        releaseChoice(
+          ~name=releaseChoiceName(~authorWidth, ~packageWidth, ~row),
+          ~value=release,
+          (),
+        )
       }),
       (),
     ),
@@ -297,7 +324,13 @@ let defaultConfirmOverwrite = async (files, options) => {
   files->Array.forEach(file => log("  " ++ file))
 
   let answer =
-    (await askWithReadline(~stdin=promptStdin, ~stdout=promptStdout, "Overwrite these files? [y/N]: "))
+    (
+      await askWithReadline(
+        ~stdin=promptStdin,
+        ~stdout=promptStdout,
+        "Overwrite these files? [y/N]: ",
+      )
+    )
     ->trim
     ->toLowerCase
   answer == "y" || answer == "yes"
@@ -314,11 +347,13 @@ let listPackageReleases = async (~packageName, ~packageVersion, ~rescriptVersion
     registryApiBaseUrl ++ "/v1/packages/" ++ encodeURIComponent(packageName) ++ "/releases"
   let queryItems: array<string> = []
   switch packageVersion {
-  | Some(version) => queryItems->Array.push("packageVersion=" ++ encodeURIComponent(version))->ignore
+  | Some(version) =>
+    queryItems->Array.push("packageVersion=" ++ encodeURIComponent(version))->ignore
   | None => ()
   }
   switch rescriptVersion {
-  | Some(version) => queryItems->Array.push("rescriptVersion=" ++ encodeURIComponent(version))->ignore
+  | Some(version) =>
+    queryItems->Array.push("rescriptVersion=" ++ encodeURIComponent(version))->ignore
   | None => ()
   }
   let url = if queryItems->Array.length == 0 {
@@ -377,7 +412,13 @@ let targetPathFor = (~root, ~relativePath) => {
   targetPath
 }
 
-let targetPlanFor = async (~cwd, ~folder, ~release: releasePayload, ~stdin, ~stdout): targetPlan => {
+let targetPlanFor = async (
+  ~cwd,
+  ~folder,
+  ~release: releasePayload,
+  ~stdin,
+  ~stdout,
+): targetPlan => {
   switch folder {
   | Some(folder) if folder->trim != "" =>
     let root = NodePath.resolve2(cwd, folder)
@@ -413,7 +454,10 @@ let targetPlanFor = async (~cwd, ~folder, ~release: releasePayload, ~stdin, ~std
         targetPathForFile: _ => targetPath,
       }
     } else {
-      let root = NodePath.resolve2(cwd, AddInstallTarget.defaultFolder(~packageName=release.packageName))
+      let root = NodePath.resolve2(
+        cwd,
+        AddInstallTarget.defaultFolder(~packageName=release.packageName),
+      )
       {
         summaryPath: {
           let relative = NodePath.relative(cwd, root)
@@ -463,18 +507,27 @@ let writeReleaseFiles = async targetFiles => {
   }
 }
 
-let runAddWithDeps = async (packageName: option<string>, folder: option<string>, deps: deps): unit => {
+let runAddWithDeps = async (
+  packageName: option<string>,
+  folder: option<string>,
+  deps: deps,
+): unit => {
   let fetchImpl = depFetch(deps)->Belt.Option.orElse(globalFetch)->requireFetch
   let projectCwd = depCwd(deps)->Belt.Option.getWithDefault(cwd())
   let log = depLog(deps)->Belt.Option.getWithDefault(message => Console.log(message))
   let promptStdin = depStdin(deps)->Belt.Option.getWithDefault(stdin)
   let promptStdout = depStdout(deps)->Belt.Option.getWithDefault(stdout)
   let selectRelease = depSelectRelease(deps)->Belt.Option.getWithDefault(defaultSelectRelease)
-  let confirmOverwrite = depConfirmOverwrite(deps)->Belt.Option.getWithDefault(defaultConfirmOverwrite)
+  let confirmOverwrite =
+    depConfirmOverwrite(deps)->Belt.Option.getWithDefault(defaultConfirmOverwrite)
+  let didClearConsole = ref(false)
   let packageJson = await readProjectPackageJson(projectCwd)
   let normalizedPackageName = switch packageName {
   | Some(packageName) if packageName->trim != "" => packageName->trim
   | _ =>
+    if isTty(isInputTty(promptStdin)) && isTty(isOutputTty(promptStdout)) {
+      clearConsoleOnce(~cleared=didClearConsole, ~stdout=promptStdout)
+    }
     await selectPackageName(
       ~packageNames=PackageJson.dependencyNamesFrom(packageJson),
       ~stdin=promptStdin,
@@ -494,6 +547,9 @@ let runAddWithDeps = async (packageName: option<string>, folder: option<string>,
     log("No bindings found for " ++ normalizedPackageName ++ ".")
   } else {
     let options = promptOptions(~stdin=promptStdin, ~stdout=promptStdout, ~log, ())
+    if isTty(isInputTty(promptStdin)) && isTty(isOutputTty(promptStdout)) {
+      clearConsoleOnce(~cleared=didClearConsole, ~stdout=promptStdout)
+    }
     let selectedRelease = await selectRelease(releases, options)
     let release = await fetchRelease(~releaseId=selectedRelease.id, ~fetchImpl)
     let targetPlan = await targetPlanFor(
@@ -524,4 +580,5 @@ let runAddWithDeps = async (packageName: option<string>, folder: option<string>,
   }
 }
 
-let runAdd = async (packageName, folder) => await runAddWithDeps(Some(packageName), folder, emptyDeps())
+let runAdd = async (packageName, folder) =>
+  await runAddWithDeps(Some(packageName), folder, emptyDeps())

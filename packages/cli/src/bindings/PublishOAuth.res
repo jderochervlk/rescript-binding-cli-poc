@@ -878,7 +878,7 @@ let selectPackageName = async (~packageNames, ~stdin, ~stdout) => {
   } else {
     await search(
       searchConfig(
-        ~message="What package would you like to add bindings for?",
+        ~message="Package name",
         ~pageSize=8,
         ~source=async (term, _) => {
           let input = term->Belt.Option.getWithDefault("")->trim
