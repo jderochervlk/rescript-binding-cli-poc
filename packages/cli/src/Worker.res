@@ -57,6 +57,12 @@ type fileRow = {
 
 type idRow = {id: string}
 
+type overwriteCandidateRow = {
+  id: string,
+  peer_package_range: string,
+  rescript_range: string,
+}
+
 type accessJwtPayload = {email: option<string>}
 
 type publishPayloadFile = {
@@ -205,6 +211,7 @@ external responseInit: (~status: int, ~headers: array<array<string>>, unit) => r
 @send external bind1: (statement, string) => boundStatement = "bind"
 @send external bind2: (statement, string, string) => boundStatement = "bind"
 @send external bind3: (statement, string, string, string) => boundStatement = "bind"
+@send external bind4: (statement, string, string, string, string) => boundStatement = "bind"
 @send
 external bind5Strings: (statement, string, string, string, string, string) => boundStatement =
   "bind"
@@ -957,7 +964,8 @@ let insertRelease = async (~db, ~input: publishInput, ~files, ~identity) => {
          AND variant_slug = ?
          AND peer_package_range = ?
          AND rescript_range = ?
-         AND manifest_sha256 = ?`)
+         AND manifest_sha256 = ?
+         AND status = 'published'`)
   ->bind5Strings(
     input.packageName,
     variantSlug,
@@ -975,14 +983,47 @@ let insertRelease = async (~db, ~input: publishInput, ~files, ~identity) => {
       "variantSlug": variantSlug,
       "fileCount": filesWithSha->Array.length,
       "duplicate": true,
+      "overwrittenReleaseIds": [],
     }
   | None =>
+    let overwriteCandidateResult: queryResult<overwriteCandidateRow> = await db
+    ->prepare(`SELECT
+        id,
+        peer_package_range,
+        rescript_range
+      FROM binding_releases
+      WHERE package_name = ?
+        AND variant_slug = ?
+        AND status = 'published'`)
+    ->bind2(input.packageName, variantSlug)
+    ->all
+    let overwrittenReleaseIds =
+      overwriteCandidateResult.results
+      ->Array.filter(row =>
+        Validation.rangesAreCloseCompatible(input.peerPackageRange, row.peer_package_range) &&
+          Validation.rangesAreCloseCompatible(input.rescriptRange, row.rescript_range)
+      )
+      ->Array.map(row => row.id)
     let releaseId = globalCrypto->randomUUID
     let auditId = globalCrypto->randomUUID
     let createdAt = makeDate()->toISOString
     let publisherLogin = publisherLabelFrom(identity)
     let publisherDisplayName = publisherDisplayNameFrom(identity, publisherLogin)
     let statements: array<boundStatement> = []
+
+    overwrittenReleaseIds->Array.forEach(overwrittenReleaseId => {
+      statements
+      ->Array.push(
+        db
+        ->prepare(`UPDATE binding_releases
+          SET status = ?
+          WHERE id = ?
+            AND package_name = ?
+            AND variant_slug = ?`)
+        ->bind4("overwritten", overwrittenReleaseId, input.packageName, variantSlug),
+      )
+      ->ignore
+    })
 
     statements
     ->Array.push(
@@ -1057,6 +1098,7 @@ let insertRelease = async (~db, ~input: publishInput, ~files, ~identity) => {
           "packageName": input.packageName,
           "variantSlug": variantSlug,
           "fileCount": filesWithSha->Array.length,
+          "overwrittenReleaseIds": overwrittenReleaseIds,
         }),
       ),
     )
@@ -1071,6 +1113,7 @@ let insertRelease = async (~db, ~input: publishInput, ~files, ~identity) => {
       "variantSlug": variantSlug,
       "fileCount": filesWithSha->Array.length,
       "duplicate": false,
+      "overwrittenReleaseIds": overwrittenReleaseIds,
     }
   }
 }

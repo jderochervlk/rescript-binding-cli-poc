@@ -905,7 +905,9 @@ let selectPackageName = async (~packageNames, ~stdin, ~stdout) => {
 
 let confirmPublishWith = async (~stdin, ~stdout) => {
   let readline = createInterface(readlineOptions(~input=stdin, ~output=stdout, ()))
-  let answer = (await readline->question("Publish this release? [y/N]: "))->trim->toLowerCase
+  let answer = (
+    await readline->question("Publish this release and overwrite matching existing releases? [y/N]: ")
+  )->trim->toLowerCase
   readline->closeReadline
   answer == "y" || answer == "yes"
 }
@@ -1058,18 +1060,22 @@ let promptForPublishInput: promptForPublishInputImpl = async (input: promptInput
     ~label="Binding file or folder",
     ~completer=pathCompleter(projectCwd),
   )
-  let peerPackageRange = await questionWithDefault(
-    ~stdin=promptStdin,
-    ~stdout=promptStdout,
-    ~label="Package version",
-    ~defaultValue=?packageVersionDefault,
-  )
-  let rescriptRange = await questionWithDefault(
-    ~stdin=promptStdin,
-    ~stdout=promptStdout,
-    ~label="ReScript version",
-    ~defaultValue=?rescriptVersionDefault,
-  )
+  let peerPackageRange = (
+    await questionWithDefault(
+      ~stdin=promptStdin,
+      ~stdout=promptStdout,
+      ~label="Minimum package version",
+      ~defaultValue=?packageVersionDefault,
+    )
+  )->Validation.normalizeMinimumRange
+  let rescriptRange = (
+    await questionWithDefault(
+      ~stdin=promptStdin,
+      ~stdout=promptStdout,
+      ~label="Minimum ReScript version",
+      ~defaultValue=?rescriptVersionDefault,
+    )
+  )->Validation.normalizeMinimumRange
   let files = await collectBindingFilesFrom(~sourcePath, ~cwd=projectCwd)
   let variantLabel = PublishSource.deriveVariantLabel(sourcePath)
 

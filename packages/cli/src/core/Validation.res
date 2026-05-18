@@ -16,6 +16,69 @@ let maxTotalBytes = 2 * 1024 * 1024
 @send external replaceAll: (string, string, string) => string = "replaceAll"
 @send external toLowerCase: string => string = "toLowerCase"
 
+type semverCore = {
+  major: int,
+  minor: int,
+  patch: int,
+}
+
+let stripRangePrefix = value => {
+  let value = value->trim
+  if value->startsWith(">=") || value->startsWith("<=") {
+    value->sliceToEnd(2)->trim
+  } else if value->startsWith("^") || value->startsWith("~") || value->startsWith("=") {
+    value->sliceToEnd(1)->trim
+  } else {
+    value
+  }
+}
+
+let parseSemverCore = value => {
+  let parts = value->stripRangePrefix->split(".")
+  switch parts[0] {
+  | Some(majorText) =>
+    switch majorText->Int.fromString {
+    | Some(major) =>
+      let minor = switch parts[1] {
+      | Some(minorText) => minorText->Int.fromString->Belt.Option.getWithDefault(0)
+      | None => 0
+      }
+      let patch = switch parts[2] {
+      | Some(patchText) => patchText->Int.fromString->Belt.Option.getWithDefault(0)
+      | None => 0
+      }
+      Some({major, minor, patch})
+    | None => None
+    }
+  | None => None
+  }
+}
+
+let normalizeMinimumRange = value => {
+  let trimmed = value->trim
+  switch parseSemverCore(trimmed) {
+  | Some(version) =>
+    "^" ++
+    version.major->Int.toString ++
+    "." ++
+    version.minor->Int.toString ++ "." ++ version.patch->Int.toString
+  | None => trimmed
+  }
+}
+
+let rangesAreCloseCompatible = (left, right) => {
+  let left = left->trim
+  let right = right->trim
+  if left == right {
+    true
+  } else {
+    switch (parseSemverCore(left), parseSemverCore(right)) {
+    | (Some(leftVersion), Some(rightVersion)) => leftVersion.major == rightVersion.major
+    | _ => false
+    }
+  }
+}
+
 let normalizeRelativePath = (inputPath: string): string => {
   let windowsNormalized = replaceAll(inputPath, "\\", "/")
   let raw = trim(windowsNormalized)

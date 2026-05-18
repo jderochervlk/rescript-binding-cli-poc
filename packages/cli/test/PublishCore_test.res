@@ -37,6 +37,31 @@ let () = {
   assertTrue(!PublishSource.shouldSkipDirectory("bindings"), "normal folders are walked")
 
   assertTrue(
+    Validation.normalizeMinimumRange("12") == "^12.0.0",
+    "major-only minimum versions normalize to a caret range",
+  )
+  assertTrue(
+    Validation.normalizeMinimumRange("12.1.3") == "^12.1.3",
+    "full minimum versions normalize to a caret range",
+  )
+  assertTrue(
+    Validation.normalizeMinimumRange("^12.1.3") == "^12.1.3",
+    "existing caret ranges remain normalized",
+  )
+  assertTrue(
+    Validation.rangesAreCloseCompatible("^12.1.0", "^12.0.0"),
+    "ReScript ranges on the same major line are close-compatible",
+  )
+  assertTrue(
+    Validation.rangesAreCloseCompatible("^7.1.0", "^7.0.10"),
+    "package ranges on the same major line are close-compatible",
+  )
+  assertTrue(
+    !Validation.rangesAreCloseCompatible("^7.1.0", "^8.0.0"),
+    "different major ranges are not close-compatible",
+  )
+
+  assertTrue(
     PublishTokenStrategy.isAccessTokenUsable(
       ~hasAccessToken=true,
       ~expiresAt=Some(120_001.0),

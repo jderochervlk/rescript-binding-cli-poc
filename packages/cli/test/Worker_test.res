@@ -14,6 +14,7 @@ type accessBody
 @get external id: jsonBody => string = "id"
 @get external releaseId: jsonBody => string = "releaseId"
 @get external duplicate: jsonBody => bool = "duplicate"
+@get external overwrittenReleaseIds: jsonBody => array<string> = "overwrittenReleaseIds"
 @get external email: accessBody => string = "email"
 @get external githubLogin: accessBody => 'value = "githubLogin"
 @get external displayName: accessBody => 'value = "displayName"
@@ -135,6 +136,53 @@ let duplicatePublishDb: Worker.env = %raw(`({
     }),
     batch: async () => {
       throw new Error("duplicate publish should not insert rows");
+    },
+  },
+})`)
+
+let overwrittenUpdateCount = ref(0)
+let overwritePublishDb: Worker.env = %raw(`({
+  DB: {
+    prepare: sql => ({
+      bind: (...params) => ({
+        __sql: sql,
+        __params: params,
+        all: async () => {
+          if (sql.includes("peer_package_range") && sql.includes("status = 'published'")) {
+            return {
+              results: [
+                {
+                  id: "old-compatible",
+                  peer_package_range: "^7.0.10",
+                  rescript_range: "^12.0.0",
+                },
+                {
+                  id: "old-package-major-mismatch",
+                  peer_package_range: "^8.0.0",
+                  rescript_range: "^12.0.0",
+                },
+                {
+                  id: "old-rescript-major-mismatch",
+                  peer_package_range: "^7.0.0",
+                  rescript_range: "^11.0.0",
+                },
+              ],
+            };
+          }
+
+          return { results: [] };
+        },
+        first: async () => null,
+        run: async () => ({ success: true }),
+      }),
+    }),
+    batch: async statements => {
+      overwrittenUpdateCount.contents = statements.filter(statement =>
+        statement.__sql.includes("UPDATE binding_releases") &&
+        statement.__params[0] === "overwritten" &&
+        statement.__params[1] === "old-compatible"
+      ).length;
+      return [];
     },
   },
 })`)
@@ -282,6 +330,41 @@ let run = async () => {
   let duplicatePublishBody = await duplicatePublish->responseJson
   TestSupport.assertTrue(duplicatePublishBody->duplicate, "duplicate publish response is marked duplicate")
   TestSupport.assertStringEquals(duplicatePublishBody->releaseId, "existing-release", "duplicate publish returns the existing release id")
+
+  let overwritePublish = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/releases",
+      requestInit(
+        ~method="POST",
+        ~headers=jsonAccessHeaders(makeJwt({"email": "dev@example.com"})),
+        ~body=TestSupport.stringify({
+          "packageName": "@inquirer/prompts",
+          "variantLabel": "default",
+          "peerPackageRange": "^7.1.0",
+          "rescriptRange": "^12.1.0",
+          "files": [{"relativePath": "Binding.res", "content": "let x = 1\n"}],
+        }),
+        (),
+      ),
+    ),
+    overwritePublishDb,
+    ctx,
+  )
+  TestSupport.assertTrue(responseStatus(overwritePublish) == 201, "compatible overwrite publish inserts a new release")
+  let overwritePublishBody = await overwritePublish->responseJson
+  TestSupport.assertTrue(
+    overwritePublishBody->overwrittenReleaseIds->Array.length == 1,
+    "compatible overwrite response lists the overwritten release",
+  )
+  TestSupport.assertStringEquals(
+    (overwritePublishBody->overwrittenReleaseIds)[0]->Belt.Option.getExn,
+    "old-compatible",
+    "compatible overwrite matches package and ReScript major lines",
+  )
+  TestSupport.assertTrue(
+    overwrittenUpdateCount.contents == 1,
+    "compatible overwrite only marks matching published releases overwritten",
+  )
 
   let adminUnauthorized = await Worker.fetch(
     makeRequestWithInit(publishApiBaseUrl ++ "/v1/admin/publishers", requestInit(~method="POST", ())),
