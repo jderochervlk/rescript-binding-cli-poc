@@ -112,46 +112,36 @@ let releaseHref = (detail: RegistryClient.detail, release: RegistryClient.detail
   ++ "?release="
   ++ encodeURIComponent(release.id)
 
-let hasDuplicateRange = (releases: array<RegistryClient.detailRelease>, release: RegistryClient.detailRelease) => {
-  let count = ref(0)
-  for index in 0 to releases->Array.length - 1 {
-    switch releases[index] {
-    | Some(candidate)
-        if candidate.peerPackageRange == release.peerPackageRange &&
-          candidate.rescriptRange == release.rescriptRange =>
-      count := count.contents + 1
-    | _ => ()
-    }
-  }
-  count.contents > 1
-}
-
-let releaseLabel = (releases: array<RegistryClient.detailRelease>, release: RegistryClient.detailRelease) => {
-  let label = release.peerPackageRange ++ " / " ++ release.rescriptRange
-  if hasDuplicateRange(releases, release) {
-    label ++ " (" ++ release.variantLabel ++ ")"
-  } else {
-    label
-  }
-}
+let releaseLink = (~detail: RegistryClient.detail, ~selected: RegistryClient.detailRelease, ~release, text) =>
+  el(
+    "a",
+    ~attrs=[
+      attr("href", releaseHref(detail, release)),
+      attr("aria-current", if release.id == selected.id {"page"} else {"false"}),
+    ],
+    ~children=[View.text(text)],
+    (),
+  )
 
 let releaseTabs = (~detail: RegistryClient.detail, ~selected: RegistryClient.detailRelease) =>
-  el("nav", ~children=[
-    el("ul", ~children=detail.releases->Array.map((release: RegistryClient.detailRelease) =>
-      el("li", ~children=[
-        el(
-          "a",
-          ~attrs=[
-            attr("href", releaseHref(detail, release)),
-            attr("aria-current", if release.id == selected.id {"page"} else {"false"}),
-          ],
-          ~children=[
-            View.text(releaseLabel(detail.releases, release)),
-          ],
-          (),
-        ),
-      ], ())
-    ), ()),
+  el("section", ~attrs=[attr("class", "release-versions")], ~children=[
+    el("h2", ~children=[View.text("Versions")], ()),
+    el("table", ~children=[
+      el("thead", ~children=[
+        el("tr", ~children=[
+          el("th", ~children=[View.text("Library version")], ()),
+          el("th", ~children=[View.text("ReScript version")], ()),
+          el("th", ~children=[View.text("Variant")], ()),
+        ], ()),
+      ], ()),
+      el("tbody", ~children=detail.releases->Array.map((release: RegistryClient.detailRelease) =>
+        el("tr", ~children=[
+          el("td", ~children=[releaseLink(~detail, ~selected, ~release, release.peerPackageRange)], ()),
+          el("td", ~children=[releaseLink(~detail, ~selected, ~release, release.rescriptRange)], ()),
+          el("td", ~children=[releaseLink(~detail, ~selected, ~release, release.variantLabel)], ()),
+        ], ())
+      ), ()),
+    ], ()),
   ], ())
 
 let sourceForFiles = (files: array<RegistryClient.file>) =>

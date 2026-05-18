@@ -92,7 +92,10 @@ let run = async () => {
   let detailHtml = await detailResponse->responseText
   detailHtml->assertContains("<h1>react</h1>", "detail page renders package heading")
   detailHtml->assertContains("Jane Example", "detail page renders author")
-  detailHtml->assertContains("^18.0.0 / ^11.0.0 (Default)", "detail page renders duplicate range tab with variant")
+  detailHtml->assertContains("Library version", "detail page labels library version column")
+  detailHtml->assertContains("ReScript version", "detail page labels ReScript version column")
+  detailHtml->assertContains("Variant", "detail page labels variant column")
+  detailHtml->assertContains("Default", "detail page renders release variant")
   detailHtml->assertContains("?release=detail-2", "detail page links tabs by release id")
   detailHtml->assertContains("/* React.res */", "detail page renders file separator")
   detailHtml->assertContains("/* ReactDOM.res */", "detail page combines files in one source block")
@@ -105,7 +108,8 @@ let run = async () => {
   let selectedResponse = await Worker.fetchWith(~fetcher=fakeFetcher, makeRequest("https://web.test/packages/react/authors/jane?release=detail-2"), emptyEnv, ctx)
   selectedResponse->assertStatus(200, "selected release page returns success")
   let selectedHtml = await selectedResponse->responseText
-  selectedHtml->assertContains("^19.0.0 / ^12.0.0", "selected release tab renders approved label")
+  selectedHtml->assertContains("^19.0.0", "selected release renders selected library version")
+  selectedHtml->assertContains("^12.0.0", "selected release renders selected ReScript version")
   selectedHtml->assertContains("let selected = true", "selected release renders selected source")
 
   let missingResponse = await Worker.fetchWith(~fetcher=fakeFetcher, makeRequest("https://web.test/packages/missing/authors/nobody"), emptyEnv, ctx)
