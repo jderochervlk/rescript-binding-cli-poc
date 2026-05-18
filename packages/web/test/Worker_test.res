@@ -66,6 +66,10 @@ let run = async () => {
   recentHtml->assertContains("picocss", "recent homepage includes Pico CDN")
   recentHtml->assertContains("highlight.min.js", "recent homepage includes Highlight.js")
   recentHtml->assertContains("rescript.min.js", "recent homepage includes ReScript highlighter")
+  recentHtml->assertContains("github-dark.min.css", "recent homepage includes dark Highlight.js theme")
+  recentHtml->assertContains("id=\"theme-toggle\"", "recent homepage renders theme toggle")
+  recentHtml->assertContains("document.documentElement.dataset.theme", "recent homepage controls Pico theme")
+  recentHtml->assertContains("localStorage.setItem(\"theme\"", "recent homepage persists theme choice")
   recentHtml->assertContains("Recently updated", "recent homepage uses approved heading")
   recentHtml->assertContains("Package name", "recent homepage uses approved table header")
   recentHtml->assertContains("Library versions", "recent homepage uses approved library header")
@@ -93,6 +97,7 @@ let run = async () => {
   detailHtml->assertContains("/* React.res */", "detail page renders file separator")
   detailHtml->assertContains("/* ReactDOM.res */", "detail page combines files in one source block")
   detailHtml->assertContains("language-rescript", "detail page marks source for ReScript highlighting")
+  detailHtml->assertContains("id=\"highlight-theme\"", "detail page renders switchable Highlight.js theme")
   detailHtml->assertContains("&lt;script&gt;", "detail page escapes source code")
 
   let selectedResponse = await Worker.fetchWith(~fetcher=fakeFetcher, makeRequest("https://web.test/packages/react/authors/jane?release=detail-2"), emptyEnv, ctx)

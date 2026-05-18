@@ -1,5 +1,6 @@
 let picoCdn = "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"
-let highlightCssCdn = "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/styles/github.min.css"
+let highlightCssLightCdn = "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/styles/github.min.css"
+let highlightCssDarkCdn = "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/styles/github-dark.min.css"
 let highlightJsCdn = "https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.11.1/highlight.min.js"
 let highlightRescriptCdn = "https://unpkg.com/highlightjs-rescript@0.2.2/dist/rescript.min.js"
 
@@ -8,6 +9,29 @@ let highlightRescriptCdn = "https://unpkg.com/highlightjs-rescript@0.2.2/dist/re
 let attr = View.Attr.string
 
 let el = (tag, ~attrs=[], ~children=[], ()) => View.element(tag, ~attrs, ~children, ())
+
+let themeSwitch = () =>
+  el("nav", ~children=[
+    el("ul", ~children=[
+      el("li", ~children=[
+        el("strong", ~children=[View.text("ReScript Bindings")], ()),
+      ], ()),
+    ], ()),
+    el("ul", ~children=[
+      el("li", ~children=[
+        el("label", ~attrs=[attr("for", "theme-toggle")], ~children=[
+          el("input", ~attrs=[
+            attr("id", "theme-toggle"),
+            attr("type", "checkbox"),
+            attr("role", "switch"),
+            attr("autocomplete", "off"),
+            attr("aria-label", "Use dark mode"),
+          ], ()),
+          View.text("Dark"),
+        ], ()),
+      ], ()),
+    ], ()),
+  ], ())
 
 let linkForEntry = (entry: RegistryClient.entry) =>
   "/packages/" ++ encodeURIComponent(entry.packageName) ++ "/authors/" ++ encodeURIComponent(entry.author)
@@ -71,6 +95,7 @@ let entryTable = entries =>
 
 let listPage = (~title, ~query="", ~entries) => () =>
   el("main", ~attrs=[attr("class", "container")], ~children=[
+    themeSwitch(),
     View.element("h1", ~children=[View.text("ReScript Bindings")], ()),
     searchForm(~query),
     el("h2", ~children=[View.text(title)], ()),
@@ -141,11 +166,13 @@ let detailPage = (
   switch selectedRelease(detail.releases, ~releaseId) {
   | None =>
     el("main", ~attrs=[attr("class", "container")], ~children=[
+      themeSwitch(),
       el("h1", ~children=[View.text(detail.packageName)], ()),
       el("p", ~children=[View.text("No releases found.")], ()),
     ], ())
   | Some(selected) =>
     el("main", ~attrs=[attr("class", "container")], ~children=[
+      themeSwitch(),
       el("p", ~children=[
         el("a", ~attrs=[attr("href", "/")], ~children=[View.text("All bindings")], ()),
       ], ()),
@@ -167,13 +194,44 @@ let detailPage = (
 
 let messagePage = (~title, ~message) => () =>
   el("main", ~attrs=[attr("class", "container")], ~children=[
+    themeSwitch(),
     el("h1", ~children=[View.text(title)], ()),
     el("p", ~children=[View.text(message)], ()),
   ], ())
 
+let themeScript = `(() => {
+  const lightTheme = "${SSR.Html.escape(highlightCssLightCdn)}";
+  const darkTheme = "${SSR.Html.escape(highlightCssDarkCdn)}";
+  const preferredTheme = () => {
+    const stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") return stored;
+    return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  };
+  const applyTheme = theme => {
+    document.documentElement.dataset.theme = theme;
+    const highlightTheme = document.getElementById("highlight-theme");
+    if (highlightTheme) highlightTheme.href = theme === "dark" ? darkTheme : lightTheme;
+    const toggle = document.getElementById("theme-toggle");
+    if (toggle) toggle.checked = theme === "dark";
+  };
+  applyTheme(preferredTheme());
+  document.addEventListener("DOMContentLoaded", () => {
+    applyTheme(preferredTheme());
+    const toggle = document.getElementById("theme-toggle");
+    if (toggle) {
+      toggle.addEventListener("change", event => {
+        const theme = event.currentTarget.checked ? "dark" : "light";
+        localStorage.setItem("theme", theme);
+        applyTheme(theme);
+      });
+    }
+    if (window.hljs) hljs.highlightAll();
+  });
+})();`
+
 let document = (~title: string, body: unit => View.node) =>
   SSR.renderDocument(
-    ~head=`<title>${SSR.Html.escape(title)}</title><meta name="color-scheme" content="light dark" /><script src="${SSR.Html.escape(highlightJsCdn)}"></script><script src="${SSR.Html.escape(highlightRescriptCdn)}"></script><script>hljs.highlightAll();</script>`,
-    ~styles=[picoCdn, highlightCssCdn],
+    ~head=`<title>${SSR.Html.escape(title)}</title><meta name="color-scheme" content="light dark" /><script>${themeScript}</script><link id="highlight-theme" rel="stylesheet" href="${SSR.Html.escape(highlightCssLightCdn)}" /><script src="${SSR.Html.escape(highlightJsCdn)}"></script><script src="${SSR.Html.escape(highlightRescriptCdn)}"></script>`,
+    ~styles=[picoCdn],
     body,
   )
