@@ -184,7 +184,7 @@ let detailPage = (
         View.text("Library " ++ selected.peerPackageRange ++ " / ReScript " ++ selected.rescriptRange),
       ], ()),
       el("p", ~children=[View.text(selected.description->Nullable.getOr(""))], ()),
-      el("pre", ~children=[
+      el("pre", ~attrs=[attr("class", "binding-source")], ~children=[
         el("code", ~attrs=[attr("class", "language-rescript")], ~children=[
           View.text(sourceForFiles(selected.files)),
         ], ()),
@@ -229,9 +229,19 @@ let themeScript = `(() => {
   });
 })();`
 
+let siteStyles = `.binding-source {
+  border: 1px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+  overflow: auto;
+}
+
+.binding-source code.hljs {
+  padding: 1rem;
+}`
+
 let document = (~title: string, body: unit => View.node) =>
   SSR.renderDocument(
-    ~head=`<title>${SSR.Html.escape(title)}</title><meta name="color-scheme" content="light dark" /><script>${themeScript}</script><link id="highlight-theme" rel="stylesheet" href="${SSR.Html.escape(highlightCssLightCdn)}" /><script src="${SSR.Html.escape(highlightJsCdn)}"></script><script src="${SSR.Html.escape(highlightRescriptCdn)}"></script>`,
+    ~head=`<title>${SSR.Html.escape(title)}</title><meta name="color-scheme" content="light dark" /><style>${siteStyles}</style><script>${themeScript}</script><link id="highlight-theme" rel="stylesheet" href="${SSR.Html.escape(highlightCssLightCdn)}" /><script src="${SSR.Html.escape(highlightJsCdn)}"></script><script src="${SSR.Html.escape(highlightRescriptCdn)}"></script>`,
     ~styles=[picoCdn],
     body,
   )

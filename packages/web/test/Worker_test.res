@@ -96,6 +96,8 @@ let run = async () => {
   detailHtml->assertContains("?release=detail-2", "detail page links tabs by release id")
   detailHtml->assertContains("/* React.res */", "detail page renders file separator")
   detailHtml->assertContains("/* ReactDOM.res */", "detail page combines files in one source block")
+  detailHtml->assertContains("binding-source", "detail page wraps source in bordered block")
+  detailHtml->assertContains("var(--pico-muted-border-color)", "detail page styles source border")
   detailHtml->assertContains("language-rescript", "detail page marks source for ReScript highlighting")
   detailHtml->assertContains("id=\"highlight-theme\"", "detail page renders switchable Highlight.js theme")
   detailHtml->assertContains("&lt;script&gt;", "detail page escapes source code")
