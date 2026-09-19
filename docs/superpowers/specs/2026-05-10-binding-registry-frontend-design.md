@@ -1,7 +1,9 @@
 # Binding Registry Frontend Design
 
 Date: 2026-05-10
-Status: Draft for review
+Status: Implemented
+
+Implementation note (`2026-09-19`): the API now lives in `packages/api` rather than `packages/cli`. The deployed frontend also gained light/dark styling and Highlight.js ReScript source highlighting after the original scope was completed.
 
 ## Summary
 

@@ -34,6 +34,7 @@ type readlineOptions
 type searchConfig
 type searchChoice
 type identityPayload
+type identityAccess
 type promptContext
 type url
 type searchParams
@@ -262,6 +263,8 @@ external identityPayloadGithubLogin: identityPayload => option<string> = "github
 @return(nullable) @get
 external identityPayloadDisplayName: identityPayload => option<string> = "displayName"
 @return(nullable) @get external identityPayloadEmail: identityPayload => option<string> = "email"
+@get external identityPayloadAccess: identityPayload => identityAccess = "access"
+@get external identityAccessPublisherApproved: identityAccess => option<bool> = "publisherApproved"
 @get external publishResultDuplicate: 'result => bool = "duplicate"
 @get external publishResultReleaseId: 'result => string = "releaseId"
 @get external publishResultPackageName: 'result => string = "packageName"
@@ -731,7 +734,10 @@ let fetchCurrentIdentity = async (~accessToken, ~fetchImpl) => {
     getAuthFetchInit(~method="GET", ~headers=authHeaders(accessToken), ()),
   )
   let identity: identityPayload = await readJson(response)
-  normalizeIdentity(identity)
+  switch identity->identityPayloadAccess->identityAccessPublisherApproved {
+  | Some(false) => fail("Your account is authenticated but is not approved to publish bindings")
+  | Some(true) | None => normalizeIdentity(identity)
+  }
 }
 
 let fetchCurrentSession = async (~accessToken, ~fetchImpl) => {

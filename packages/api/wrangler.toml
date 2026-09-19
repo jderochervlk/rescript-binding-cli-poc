@@ -5,6 +5,9 @@ compatibility_date = "2026-04-19"
 [build]
 command = "pnpm run build"
 
+[vars]
+PUBLISHER_ADMIN_IDENTITIES = "josh@vlkpack.com"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "rescript-binding-registry"

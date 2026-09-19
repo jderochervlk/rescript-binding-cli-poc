@@ -321,6 +321,43 @@ let run = async () => {
   assertStringEquals(reuseMeAuth.contents, "Bearer cached-token", "reuse flow uses cached bearer token for /v1/me")
   assertAuthIdentity(reuseResult.githubLogin, "cached-dev", "reuse flow returns cached identity result")
 
+  let unapprovedMessage = ref("")
+  try {
+    let _ = await PublishOAuth.runPublishAuth(Some(options(~deps=deps(
+      ~now=() => now,
+      ~platform="linux",
+      ~homeDir="/home/josh",
+      ~readCache=readCache(tokenBundle(
+        ~accessToken="unapproved-token",
+        ~refreshToken="oauth:unapproved-refresh",
+        ~expiresAt=now +. 120000.0,
+        ~clientId="unapproved-client",
+        (),
+      )),
+      ~writeCache=noWriteCache("unapproved cached token should not persist cache"),
+      ~fetch=async (url, _init) => {
+        if url == PublishOAuth.publishBaseUrl ++ "/v1/me" {
+          jsonResponse({
+            "email": "unapproved@example.com",
+            "access": {"authenticated": true, "publisherApproved": false, "admin": false},
+          })
+        } else {
+          expectUnexpected("unapproved publisher flow", url)
+        }
+      },
+      ~openBrowser=noBrowser("unapproved cached token should not open a browser"),
+      ~createLoopbackServer=noLoopback("unapproved cached token should not create a loopback server"),
+      (),
+    ), ())))
+    throw(Failure("unapproved publisher authentication should fail"))
+  } catch {
+  | error => unapprovedMessage := messageFromError(error)
+  }
+  assertTrue(
+    unapprovedMessage.contents->includes("not approved to publish"),
+    "publish authentication fails before prompting for unapproved identities",
+  )
+
   let refreshTokenBody = ref("")
   let refreshWrite = ref(None)
   let refreshMeAuth = ref("")
