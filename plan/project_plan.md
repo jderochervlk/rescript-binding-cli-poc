@@ -8,7 +8,7 @@
 
 Build a Cloudflare-hosted registry and CLI workflow for publishing and installing ReScript bindings. End users run `rescript-bindings add [package]` to browse available releases for a JavaScript library, inspect author and compatibility metadata, and copy the selected binding into their local project. Approved contributors run `rescript-bindings publish` to upload local `.res` and `.resi` files through a Cloudflare Access OAuth flow for CLIs.
 
-This design keeps read access fully public, limits publish access to identities approved in D1, and stores binding metadata and file contents in Cloudflare D1 for operational simplicity in v1. Approved identities may be matched by GitHub login or by the email claim supplied by Cloudflare Access.
+This design keeps read access fully public, limits publish access to identities approved in D1, and stores binding metadata and file contents in Cloudflare D1 for operational simplicity in v1. Approved identities may be matched by GitHub login or by the email claim supplied by Cloudflare Access. The current Access identity decoder supplies verified email, so administrative approvals require email; GitHub logins are normalized to lowercase for case-insensitive storage and future GitHub-backed claims.
 
 ## Goals
 
@@ -301,7 +301,7 @@ On success:
 
 #### `POST /api/publish/v1/admin/publishers`
 
-Administrative endpoint for adding or deactivating approved publishers. Access requires both a valid Cloudflare Access identity and membership in the Worker’s comma-separated `PUBLISHER_ADMIN_IDENTITIES` configuration. Publisher approvals are upserted into D1 and record the administrator identity in `added_by`.
+Administrative endpoint for adding or deactivating approved publishers. Access requires both a valid Cloudflare Access identity and membership in the Worker’s comma-separated `PUBLISHER_ADMIN_IDENTITIES` configuration. Publisher approvals require the verified email used by the current Access identity decoder, normalize the GitHub login to lowercase before using it as the D1 key, and record the administrator identity in `added_by`.
 
 ## CLI Design
 

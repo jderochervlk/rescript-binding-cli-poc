@@ -1300,21 +1300,36 @@ let deletePublishedRelease = async (~releaseId, ~accessToken, ~fetchImpl) =>
 
 let runPublish = async maybeOptions => {
   let deps = depsFromOptions(maybeOptions)
-  let fetchImpl = deps->depFetch->Belt.Option.orElse(globalFetch)
+  let fetchImpl = switch deps->depFetch {
+  | Some(fetchImpl) => Some(fetchImpl)
+  | None => globalFetch
+  }
   let fetchImpl = switch fetchImpl {
   | Some(fetchImpl) => fetchImpl
   | None => fail("Publish helper requires a fetch implementation")
   }
-  let projectCwd = deps->depCwd->Belt.Option.getWithDefault(cwd())
-  let prompt = deps->depPromptForPublishInput->Belt.Option.getWithDefault(promptForPublishInput)
-  let promptStdin = deps->depStdin->Belt.Option.getWithDefault(stdin)
-  let promptStdout = deps->depStdout->Belt.Option.getWithDefault(stdout)
+  let projectCwd = switch deps->depCwd {
+  | Some(projectCwd) => projectCwd
+  | None => cwd()
+  }
+  let prompt = switch deps->depPromptForPublishInput {
+  | Some(prompt) => prompt
+  | None => promptForPublishInput
+  }
+  let promptStdin = switch deps->depStdin {
+  | Some(promptStdin) => promptStdin
+  | None => stdin
+  }
+  let promptStdout = switch deps->depStdout {
+  | Some(promptStdout) => promptStdout
+  | None => stdout
+  }
+  let session = await runPublishAuthSession(maybeOptions)
   let input = await prompt(promptInputObj(~cwd=projectCwd, ~stdin=promptStdin, ~stdout=promptStdout, ()))
 
   switch input {
   | None => Console.log("Publish cancelled.")
   | Some(input) =>
-    let session = await runPublishAuthSession(maybeOptions)
     let result = await publishRelease(~input, ~accessToken=session.accessToken, ~fetchImpl)
     if result->publishResultDuplicate {
       Console.log("Release already exists: " ++ result->publishResultReleaseId)

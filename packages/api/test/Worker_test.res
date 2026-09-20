@@ -17,6 +17,9 @@ type accessBody
 @get external duplicate: jsonBody => bool = "duplicate"
 @get external overwrittenReleaseIds: jsonBody => array<string> = "overwrittenReleaseIds"
 @get external deleted: jsonBody => bool = "deleted"
+@get external adminPublisherGithubLogin: jsonBody => string = "githubLogin"
+@get external adminPublisherEmail: jsonBody => string = "email"
+@get external adminPublisherActive: jsonBody => bool = "active"
 @get external email: accessBody => string = "email"
 @get external githubLogin: accessBody => 'value = "githubLogin"
 @get external displayName: accessBody => 'value = "displayName"
@@ -568,8 +571,8 @@ let run = async () => {
         ~method="POST",
         ~headers=jsonAccessHeaders(makeJwt({"email": "dev@example.com"})),
         ~body=TestSupport.stringify({
-          "githubLogin": "new-publisher",
-          "email": "publisher@example.com",
+          "githubLogin": "New-Publisher",
+          "email": "Publisher@Example.com",
           "active": true,
         }),
         (),
@@ -579,6 +582,58 @@ let run = async () => {
     ctx,
   )
   TestSupport.assertTrue(responseStatus(adminUpsert) == 200, "configured admin can approve a publisher")
+  let adminUpsertBody: jsonBody = await adminUpsert->responseJson
+  TestSupport.assertStringEquals(
+    adminUpsertBody->adminPublisherGithubLogin,
+    "new-publisher",
+    "publisher login is normalized before it is used as the upsert key",
+  )
+  TestSupport.assertStringEquals(
+    adminUpsertBody->adminPublisherEmail,
+    "publisher@example.com",
+    "publisher email is normalized before storage",
+  )
+  TestSupport.assertTrue(adminUpsertBody->adminPublisherActive, "publisher is activated")
+
+  let missingPublisherEmail = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/admin/publishers",
+      requestInit(
+        ~method="POST",
+        ~headers=jsonAccessHeaders(makeJwt({"email": "dev@example.com"})),
+        ~body=TestSupport.stringify({"githubLogin": "login-only", "active": true}),
+        (),
+      ),
+    ),
+    fakeDb,
+    ctx,
+  )
+  TestSupport.assertTrue(
+    responseStatus(missingPublisherEmail) == 400,
+    "publisher approval requires an email until GitHub login claims are available",
+  )
+
+  let invalidPublisherActive = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/admin/publishers",
+      requestInit(
+        ~method="POST",
+        ~headers=jsonAccessHeaders(makeJwt({"email": "dev@example.com"})),
+        ~body=TestSupport.stringify({
+          "githubLogin": "new-publisher",
+          "email": "publisher@example.com",
+          "active": "false",
+        }),
+        (),
+      ),
+    ),
+    fakeDb,
+    ctx,
+  )
+  TestSupport.assertTrue(
+    responseStatus(invalidPublisherActive) == 400,
+    "publisher approval rejects a non-boolean active value",
+  )
 
   let unapprovedMe = await Worker.fetch(
     makeRequestWithInit(

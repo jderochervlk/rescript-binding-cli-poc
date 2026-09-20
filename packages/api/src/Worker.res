@@ -94,9 +94,10 @@ type publishPayload = {
   files: option<array<publishPayloadFile>>,
 }
 
+@schema
 type adminPublisherPayload = {
-  githubLogin: option<string>,
-  email: option<string>,
+  githubLogin: string,
+  email: string,
   active: option<bool>,
 }
 
@@ -1203,17 +1204,8 @@ let filesWithShaFrom = async (files: array<normalizedFileEntry>) => {
 }
 
 let normalizeAdminPublisherPayload = (payload: adminPublisherPayload) => {
-  let githubLogin = stringField(payload.githubLogin, "githubLogin")
-  let email = switch payload.email {
-  | Some(email) =>
-    let trimmed = email->trim
-    if trimmed == "" {
-      None
-    } else {
-      Some(trimmed)
-    }
-  | None => None
-  }
+  let githubLogin = stringField(Some(payload.githubLogin), "githubLogin")->toLowerCase
+  let email = Some(stringField(Some(payload.email), "email")->toLowerCase)
   let active = switch payload.active {
   | Some(active) => active
   | None => true
@@ -1231,7 +1223,9 @@ let handleAdminPublishers = async (~request, ~env, ~identity) =>
       forbidden("Publisher administration requires a configured administrator identity")
     } else {
       let payloadResult = try {
-        let payload: adminPublisherPayload = await request->requestJson
+        let payload = (await request->requestJson)->S.parseOrThrow(
+          ~to=adminPublisherPayloadSchema,
+        )
         Ok(normalizeAdminPublisherPayload(payload))
       } catch {
       | error => Error(validationMessageFrom(error))

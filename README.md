@@ -121,6 +121,8 @@ Content-Type: application/json
 }
 ```
 
+`email` is currently required because Cloudflare Access supplies the verified email claim used for authorization. `githubLogin` is normalized to lowercase for its case-insensitive D1 key and remains available for GitHub-backed identity claims.
+
 `GET /api/publish/v1/me` reports `access.authenticated`, `access.publisherApproved`, and `access.admin`. Only active publishers and configured administrators may create releases.
 
 ## API Base
