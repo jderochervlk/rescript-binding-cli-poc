@@ -1,7 +1,7 @@
 # ReScript Binding Registry Design
 
 **Date:** 2026-04-18
-**Status:** Phase 1 complete; Phase 2 substantially complete; Phase 3 pending
+**Status:** Phase 1 complete; Phase 2 complete; Phase 3 pending
 **Owner:** ReScript team
 
 ## Summary
@@ -432,7 +432,7 @@ This keeps the security boundary narrow:
 
 - [x] `rescript-bindings add [package]`
 - [x] `rescript-bindings publish`
-- [ ] semver-aware compatibility ranking (the current picker uses exact normalized-range equality)
+- [x] semver-aware compatibility ranking
 - [x] package selector from local dependencies
 - [x] install file/path prompt with ReScript filename normalization
 - [x] `--folder` override
@@ -460,7 +460,7 @@ This keeps the security boundary narrow:
 
 ## Current Implementation Checkpoint
 
-- Phase 1 is implemented on `main` as of 2026-09-19; the remaining Phase 2 gap is true semver-aware compatibility ranking.
+- Phase 1 and Phase 2 are implemented as of 2026-09-20. Compatibility ranking now uses semver range overlap for exact versions, caret and tilde ranges, and compound comparators.
 - CLI commands are top-level `list`, `recent`, `search`, `get`, `add`, `update`, `delete`, and `publish`, backed by the bundled `packages/cli/bin/index.mjs`.
 - Public read endpoints use `/api/v1/...`; protected publish endpoints use `/api/publish/v1/...`.
 - The registry API and D1 schema live in `packages/api`; the Node CLI lives in `packages/cli`; the browsing frontend lives in `packages/web`.

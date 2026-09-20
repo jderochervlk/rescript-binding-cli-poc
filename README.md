@@ -16,6 +16,8 @@ pnpx @jvlk/rescript-bindings publish
 
 When the package argument is omitted, `add` offers an interactive selector populated from `peerDependencies`, `dependencies`, and `devDependencies` in the local `package.json`. The release picker shows author, JavaScript package compatibility, and ReScript compatibility in a table.
 
+Compatibility compares the dependency ranges in the consuming project's `package.json` with the package and ReScript ranges declared by each binding release. It uses semver range overlap instead of string equality, so a project using `^1.4.0` can match a binding supporting `^1.0.0`, while a binding requiring `^2.0.0` is ranked as incompatible. Exact versions, caret and tilde ranges, and compound comparator ranges are supported.
+
 For single-file releases, `add` prompts for the install file path and defaults to a ReScript-safe PascalCase filename derived from the package name, for example:
 
 ```text
