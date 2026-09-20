@@ -1,7 +1,9 @@
 # Publish OAuth Design
 
 **Date:** 2026-04-24
-**Status:** Approved for planning
+**Status:** Implemented; manual production verification remains
+
+Implementation note (`2026-09-19`): OAuth now lives in ReScript under `packages/cli/src/bindings/PublishOAuth.res`, and the protected identity endpoint is `GET /api/publish/v1/me`. D1-backed publisher approval was added after this authentication-focused design slice.
 **Scope:** `rescript binding publish` authentication slice only
 
 ## Goal
@@ -270,9 +272,8 @@ Use one real Cloudflare verification checklist:
 
 ## Out Of Scope
 
-The following are explicitly deferred:
+The following were explicitly deferred from this authentication slice:
 
-- D1-backed publisher allowlist checks
 - full publish metadata prompts
 - folder walking and file validation during publish
 - release upload to `POST /v1/releases`
@@ -280,6 +281,8 @@ The following are explicitly deferred:
 - OS keychain integration
 - headless auth flows
 - additional identity providers
+
+D1-backed publisher authorization, publish metadata prompts, folder walking, release upload, and authenticated publisher administration have since been implemented as part of the registry MVP.
 
 ## Next Step
 

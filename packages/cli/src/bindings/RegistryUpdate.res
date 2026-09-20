@@ -108,6 +108,33 @@ let commentLineValue = (~comment, ~prefix) => {
   result.contents
 }
 
+let bindingVersionLine = comment => {
+  let lines = comment->split("\n")
+  let result = ref(None)
+
+  for index in 0 to lines->Array.length - 1 {
+    switch lines[index] {
+    | Some(line) =>
+      let line = line->trim
+      let line = if line->startsWith("*") {
+        line->sliceFrom(1)->trim
+      } else {
+        line
+      }
+      if (
+        result.contents == None &&
+        !(line->startsWith("Rescript version:")) &&
+        line->indexOf(" version:") > 0
+      ) {
+        result := Some(line)
+      }
+    | None => ()
+    }
+  }
+
+  result.contents
+}
+
 let parseInstalledBindings = content => {
   let matches: array<(int, string)> = []
   let cursor = ref(0)
@@ -135,7 +162,7 @@ let parseInstalledBindings = content => {
   for index in 0 to matches->Array.length - 1 {
     switch matches[index] {
     | Some((blockStart, comment)) =>
-      let version = commentLineValue(~comment, ~prefix="version:")
+      let version = bindingVersionLine(comment)
       let rescriptRange = commentLineValue(~comment, ~prefix="Rescript version:")
       switch (version, rescriptRange) {
       | (Some(versionLine), Some(rescriptRange)) =>

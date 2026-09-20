@@ -1,14 +1,14 @@
 # ReScript Binding Registry Design
 
 **Date:** 2026-04-18
-**Status:** In progress
+**Status:** Phase 1 complete; Phase 2 substantially complete; Phase 3 pending
 **Owner:** ReScript team
 
 ## Summary
 
 Build a Cloudflare-hosted registry and CLI workflow for publishing and installing ReScript bindings. End users run `rescript-bindings add [package]` to browse available releases for a JavaScript library, inspect author and compatibility metadata, and copy the selected binding into their local project. Approved contributors run `rescript-bindings publish` to upload local `.res` and `.resi` files through a Cloudflare Access OAuth flow for CLIs.
 
-This design keeps read access fully public, limits publish access to an allowlisted set of GitHub accounts, and stores binding metadata and file contents in Cloudflare D1 for operational simplicity in v1.
+This design keeps read access fully public, limits publish access to identities approved in D1, and stores binding metadata and file contents in Cloudflare D1 for operational simplicity in v1. Approved identities may be matched by GitHub login or by the email claim supplied by Cloudflare Access. The current Access identity decoder supplies verified email, so administrative approvals require email; GitHub logins are normalized to lowercase for case-insensitive storage and future GitHub-backed claims.
 
 ## Goals
 
@@ -118,7 +118,7 @@ Publish/auth flow:
 3. The CLI caches the resulting token bundle locally for the registry host.
 4. The CLI sends the publish request with the Access bearer token expected by the protected endpoint.
 5. The Worker validates the Access assertion.
-6. The Worker resolves the authenticated identity and checks it against an internal allowlist in D1.
+6. The Worker resolves the authenticated identity and checks its GitHub login or email against the active publisher allowlist in D1.
 7. If the account is allowlisted, the publish proceeds immediately.
 
 Public read endpoints do not require authentication.
@@ -264,7 +264,8 @@ This is the install payload consumed by `rescript-bindings add`.
 Returns:
 
 - authenticated contributor identity
-- whether the identity is allowlisted
+- whether the identity is approved to publish
+- whether the identity is a configured publisher administrator
 
 This can be used by the CLI to fail early before prompting for publish input.
 
@@ -300,7 +301,7 @@ On success:
 
 #### `POST /api/publish/v1/admin/publishers`
 
-Administrative endpoint for adding or deactivating approved publishers. This is not required for the consumer-facing MVP, but the API boundary should exist from the beginning.
+Administrative endpoint for adding or deactivating approved publishers. Access requires both a valid Cloudflare Access identity and membership in the Worker’s comma-separated `PUBLISHER_ADMIN_IDENTITIES` configuration. Publisher approvals require the verified email used by the current Access identity decoder, normalize the GitHub login to lowercase before using it as the D1 key, and record the administrator identity in `added_by`.
 
 ## CLI Design
 
@@ -419,30 +420,32 @@ This keeps the security boundary narrow:
 
 ### Phase 1: Registry MVP
 
-- Worker routing for public and protected APIs
-- D1 schema for publishers, releases, files, and audit log
-- public list and fetch endpoints
-- protected publish endpoint
-- strict upload validation for `.res` and `.resi`
+- [x] Worker routing for public and protected APIs
+- [x] D1 schema for publishers, releases, files, and audit log
+- [x] public list and fetch endpoints
+- [x] protected publish endpoint
+- [x] D1-backed publisher authorization
+- [x] authenticated publisher administration endpoint
+- [x] strict upload validation for `.res` and `.resi`
 
 ### Phase 2: CLI MVP
 
-- `rescript-bindings add [package]`
-- `rescript-bindings publish`
-- compatibility-aware release picker
-- package selector from local dependencies
-- install file/path prompt with ReScript filename normalization
-- `--folder` override
-- overwrite confirmation
+- [x] `rescript-bindings add [package]`
+- [x] `rescript-bindings publish`
+- [ ] semver-aware compatibility ranking (the current picker uses exact normalized-range equality)
+- [x] package selector from local dependencies
+- [x] install file/path prompt with ReScript filename normalization
+- [x] `--folder` override
+- [x] overwrite confirmation
 
 ### Phase 3: Hardening
 
-- release deprecation
-- richer search and ranking
-- contributor/admin tooling for publisher management
-- optional install manifest for later update/remove commands
-- optional R2 migration if D1 file storage becomes limiting
-- optional richer browser/auth UX once the PoC flow is stable
+- [ ] release deprecation
+- [ ] richer semver-aware search and compatibility ranking
+- [ ] contributor-facing publisher management UI
+- [ ] optional install manifest for later update/remove commands
+- [ ] optional R2 migration if D1 file storage becomes limiting
+- [ ] optional richer browser/auth UX once the PoC flow is stable
 
 ## Design Decisions
 
@@ -457,14 +460,16 @@ This keeps the security boundary narrow:
 
 ## Current Implementation Checkpoint
 
-- CLI commands are top-level `add` and `publish`, backed by the bundled `bin/index.mjs`.
+- Phase 1 is implemented on `main` as of 2026-09-19; the remaining Phase 2 gap is true semver-aware compatibility ranking.
+- CLI commands are top-level `list`, `recent`, `search`, `get`, `add`, `update`, `delete`, and `publish`, backed by the bundled `packages/cli/bin/index.mjs`.
 - Public read endpoints use `/api/v1/...`; protected publish endpoints use `/api/publish/v1/...`.
-- Add-flow domain rules now live in small documented ReScript modules under `src/add`.
-- Publish-flow domain rules now live in small documented ReScript modules under `src/publish`.
-- Parsed package dependency lookup now lives in `src/core/PackageJson.res` and is shared by add and publish.
-- Registry endpoint constants live in `src/core/RegistryConfig.res`.
-- Runtime JS files remain outside `src/` under `js/` for Node/Worker interop: Commander, TTY prompts, browser launch, OAuth loopback server, filesystem reads/writes, and HTTP calls.
-- Focused ReScript tests cover the extracted add and publish rules, and the existing JS integration tests cover the orchestration boundary.
+- The registry API and D1 schema live in `packages/api`; the Node CLI lives in `packages/cli`; the browsing frontend lives in `packages/web`.
+- Cloudflare Access authenticates protected requests, while active rows in `approved_publishers` authorize publishing.
+- `PUBLISHER_ADMIN_IDENTITIES` provides the bootstrap administration boundary for adding or deactivating publishers.
+- `/api/publish/v1/me` reports authenticated, publisher-approved, and administrator status so the CLI can reject unapproved contributors before prompting.
+- Add- and publish-flow domain rules live in documented ReScript modules under `packages/cli/src/add` and `packages/cli/src/publish`.
+- OAuth discovery, dynamic client registration, PKCE, token caching, refresh, and loopback callback handling are implemented in ReScript under `packages/cli/src/bindings/PublishOAuth.res`.
+- Focused ReScript tests cover CLI rules, OAuth orchestration, Worker routing and authorization, validation, discovery, SSR rendering, and local D1 persistence.
 
 ## Rationale
 

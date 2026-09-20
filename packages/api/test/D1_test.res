@@ -35,6 +35,12 @@ type fileRow = {
   bytes: int,
 }
 type fileContentRow = {content: string}
+type approvedPublisherRow = {
+  github_login: string,
+  email: string,
+  active: int,
+  added_by: string,
+}
 
 let firstResult = response => {
   let result: queryResponse<'row> = response[0]->Belt.Option.getExn
@@ -58,6 +64,20 @@ DELETE FROM binding_files;
 DELETE FROM publish_audit_log;
 DELETE FROM binding_releases;
 DELETE FROM approved_publishers;
+
+INSERT INTO approved_publishers (
+  github_login,
+  email,
+  active,
+  added_at,
+  added_by
+) VALUES (
+  'local-dev',
+  'local-dev@example.com',
+  1,
+  '` ++ createdAt ++ `',
+  'bootstrap-admin'
+);
 
 INSERT INTO binding_releases (
   id,
@@ -107,6 +127,24 @@ SELECT
   (SELECT COUNT(*) FROM binding_releases WHERE package_name = 'is-even') AS release_count,
   (SELECT COUNT(*) FROM binding_files WHERE release_id = '` ++ releaseId ++ `') AS file_count;
 `)->ignore
+
+  let approvedPublishers: array<queryResponse<approvedPublisherRow>> = execLocalSql(`
+SELECT github_login, email, active, added_by
+FROM approved_publishers
+WHERE email = 'local-dev@example.com';
+`)
+  let approvedPublisher = firstResult(approvedPublishers)
+  TestSupport.assertStringEquals(
+    approvedPublisher.github_login,
+    "local-dev",
+    "approved publisher stores the GitHub login",
+  )
+  TestSupport.assertTrue(approvedPublisher.active == 1, "approved publisher is active")
+  TestSupport.assertStringEquals(
+    approvedPublisher.added_by,
+    "bootstrap-admin",
+    "approved publisher records who granted access",
+  )
 
   let verify: array<queryResponse<releaseRow>> = execLocalSql(`
 SELECT

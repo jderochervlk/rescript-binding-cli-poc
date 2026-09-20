@@ -8,6 +8,18 @@
 
 **Tech Stack:** ReScript 12, Xote, Cloudflare Workers, D1, Wrangler, Rolldown, Pico CSS CDN, pnpm workspaces
 
+## Execution Status
+
+Completed and merged to `main`. Last synced: `2026-09-19`.
+
+- Public recent, search, and package-author detail endpoints are implemented in `packages/api` with focused Worker tests.
+- The separate Xote SSR frontend Worker is implemented in `packages/web`.
+- Homepage, search results, package-author detail pages, release tabs, source rendering, light/dark styling, and ReScript syntax highlighting are implemented.
+- Root build and test scripts include the API, CLI, and web packages.
+- The public registry API and frontend Worker are deployed.
+
+The task details and code snippets below are retained as implementation history. References to `packages/cli` owning the registry Worker were superseded when the API moved into `packages/api`.
+
 ---
 
 ## File Structure
@@ -44,7 +56,7 @@
 - Create: `packages/cli/test/DiscoveryApi_test.res`
 - Modify: `packages/cli/package.json`
 
-- [ ] **Step 1: Add the failing discovery API test file**
+- [x] **Step 1: Add the failing discovery API test file**
 
 Create `packages/cli/test/DiscoveryApi_test.res` with this content:
 
@@ -248,7 +260,7 @@ let () = {
 }
 ```
 
-- [ ] **Step 2: Add the new test to the CLI package script**
+- [x] **Step 2: Add the new test to the CLI package script**
 
 Modify `packages/cli/package.json` so the `test` script includes the new test after `Worker_test.res.mjs`:
 
@@ -256,7 +268,7 @@ Modify `packages/cli/package.json` so the `test` script includes the new test af
 "test": "pnpm run build && node test/Validation_test.res.mjs && node test/Cli_test.res.mjs && node test/AddCore_test.res.mjs && node test/PublishCore_test.res.mjs && node test/PackageJson_test.res.mjs && node test/Add_test.res.mjs && node test/PublishOAuth_test.res.mjs && node test/Worker_test.res.mjs && node test/DiscoveryApi_test.res.mjs && node test/Bin_test.res.mjs && node test/D1_test.res.mjs"
 ```
 
-- [ ] **Step 3: Run the new test to verify it fails**
+- [x] **Step 3: Run the new test to verify it fails**
 
 Run:
 
@@ -267,7 +279,7 @@ node packages/cli/test/DiscoveryApi_test.res.mjs
 
 Expected: FAIL because `/api/v1/bindings/recent`, `/api/v1/bindings/search`, and `/api/v1/bindings/:package/authors/:author` return `404`.
 
-- [ ] **Step 4: Commit the failing API test**
+- [x] **Step 4: Commit the failing API test**
 
 ```bash
 git add packages/cli/package.json packages/cli/test/DiscoveryApi_test.res
@@ -281,7 +293,7 @@ git commit -m "test: cover binding discovery api"
 - Modify: `packages/cli/src/Worker.res`
 - Test: `packages/cli/test/DiscoveryApi_test.res`
 
-- [ ] **Step 1: Add response types and D1 bindings**
+- [x] **Step 1: Add response types and D1 bindings**
 
 In `packages/cli/src/Worker.res`, add these types near the existing release response types:
 
@@ -337,7 +349,7 @@ Add these externals near the existing D1 statement externals:
 @send external allStatement: statement => promise<queryResult<'row>> = "all"
 ```
 
-- [ ] **Step 2: Add public discovery routes**
+- [x] **Step 2: Add public discovery routes**
 
 Replace the `route` type with this expanded version:
 
@@ -402,7 +414,7 @@ let isProtectedRoute = route =>
   }
 ```
 
-- [ ] **Step 3: Add grouping helpers**
+- [x] **Step 3: Add grouping helpers**
 
 Add these helpers after `releaseWithCompatibility`:
 
@@ -475,7 +487,7 @@ let escapeLikePattern = value =>
   ->replaceAll("_", "\\_")
 ```
 
-- [ ] **Step 4: Add recent and search handlers**
+- [x] **Step 4: Add recent and search handlers**
 
 Add these handlers after `handleGetRelease`:
 
@@ -546,7 +558,7 @@ let handleSearchBindings = async (~env, ~url) =>
   }
 ```
 
-- [ ] **Step 5: Add package-author detail handler**
+- [x] **Step 5: Add package-author detail handler**
 
 Add this helper and handler after `handleSearchBindings`:
 
@@ -643,7 +655,7 @@ let handleGetBindingAuthorDetail = async (~env, ~packageName, ~author) =>
   }
 ```
 
-- [ ] **Step 6: Wire handlers into `fetch`**
+- [x] **Step 6: Wire handlers into `fetch`**
 
 Add these branches to the `switch route` inside `fetch`:
 
@@ -653,7 +665,7 @@ Add these branches to the `switch route` inside `fetch`:
 | GetBindingAuthorDetail(packageName, author) => await handleGetBindingAuthorDetail(~env, ~packageName, ~author)
 ```
 
-- [ ] **Step 7: Run the discovery API test**
+- [x] **Step 7: Run the discovery API test**
 
 Run:
 
@@ -664,7 +676,7 @@ node packages/cli/test/DiscoveryApi_test.res.mjs
 
 Expected: PASS with final line `DiscoveryApi_test.res passed`.
 
-- [ ] **Step 8: Run the existing Worker test**
+- [x] **Step 8: Run the existing Worker test**
 
 Run:
 
@@ -674,7 +686,7 @@ node packages/cli/test/Worker_test.res.mjs
 
 Expected: PASS with final line `Worker_test.res passed`.
 
-- [ ] **Step 9: Commit the API implementation**
+- [x] **Step 9: Commit the API implementation**
 
 ```bash
 git add packages/cli/src/Worker.res
@@ -693,7 +705,7 @@ git commit -m "feat: add binding discovery api"
 - Create: `packages/web/src/Worker.res`
 - Create: `packages/web/test/Worker_test.res`
 
-- [ ] **Step 1: Create the web package manifest**
+- [x] **Step 1: Create the web package manifest**
 
 Create `packages/web/package.json`:
 
@@ -723,7 +735,7 @@ Create `packages/web/package.json`:
 }
 ```
 
-- [ ] **Step 2: Install workspace dependencies**
+- [x] **Step 2: Install workspace dependencies**
 
 Run:
 
@@ -733,7 +745,7 @@ pnpm install
 
 Expected: installs `xote`, `rescript`, `rolldown`, and `wrangler` for `packages/web` and updates `pnpm-lock.yaml`.
 
-- [ ] **Step 3: Create ReScript, Rolldown, and Wrangler config**
+- [x] **Step 3: Create ReScript, Rolldown, and Wrangler config**
 
 Create `packages/web/rescript.json`:
 
@@ -801,7 +813,7 @@ enabled = true
 invocation_logs = true
 ```
 
-- [ ] **Step 4: Write the failing SSR smoke test**
+- [x] **Step 4: Write the failing SSR smoke test**
 
 Create `packages/web/test/Worker_test.res`:
 
@@ -848,7 +860,7 @@ let () = {
 }
 ```
 
-- [ ] **Step 5: Copy minimal test support into the web package**
+- [x] **Step 5: Copy minimal test support into the web package**
 
 Create `packages/web/test/TestSupport.res`:
 
@@ -876,7 +888,7 @@ Create `packages/web/test/NodeProcess.res`:
 @module("node:process") external exit: int => unit = "exit"
 ```
 
-- [ ] **Step 6: Run the smoke test to verify it fails**
+- [x] **Step 6: Run the smoke test to verify it fails**
 
 Run:
 
@@ -887,7 +899,7 @@ node packages/web/test/Worker_test.res.mjs
 
 Expected: FAIL because `packages/web/src/Worker.res` does not exist.
 
-- [ ] **Step 7: Add minimal Xote SSR page and Worker**
+- [x] **Step 7: Add minimal Xote SSR page and Worker**
 
 Create `packages/web/src/Pages.res`:
 
@@ -966,7 +978,7 @@ let fetch = async (request, env, ctx) => await fetchWith(~fetcher=globalFetch, r
 %%raw("export default { fetch }")
 ```
 
-- [ ] **Step 8: Run the web package SSR smoke test**
+- [x] **Step 8: Run the web package SSR smoke test**
 
 Run:
 
@@ -976,7 +988,7 @@ pnpm --filter @jvlk/rescript-bindings-web test
 
 Expected: PASS with final line `Web Worker_test.res passed`.
 
-- [ ] **Step 9: Bundle the web Worker**
+- [x] **Step 9: Bundle the web Worker**
 
 Run:
 
@@ -988,7 +1000,7 @@ Expected: PASS and creates `packages/web/dist/worker.mjs`.
 
 If this fails because Xote SSR imports browser-only globals while bundling or evaluating the Worker, stop here and write a replacement client-side web plan against the same registry API endpoints.
 
-- [ ] **Step 10: Commit the web scaffold**
+- [x] **Step 10: Commit the web scaffold**
 
 ```bash
 git add packages/web pnpm-lock.yaml
@@ -1004,7 +1016,7 @@ git commit -m "feat: scaffold binding registry web worker"
 - Modify: `packages/web/src/Worker.res`
 - Modify: `packages/web/test/Worker_test.res`
 
-- [ ] **Step 1: Add full web Worker tests**
+- [x] **Step 1: Add full web Worker tests**
 
 Replace `packages/web/test/Worker_test.res` with:
 
@@ -1102,7 +1114,7 @@ let () = {
 }
 ```
 
-- [ ] **Step 2: Run the web test to verify it fails**
+- [x] **Step 2: Run the web test to verify it fails**
 
 Run:
 
@@ -1112,7 +1124,7 @@ pnpm --filter @jvlk/rescript-bindings-web test
 
 Expected: FAIL because `Pages.home` still renders only the smoke page and `RegistryClient.res` does not exist.
 
-- [ ] **Step 3: Create the registry API client**
+- [x] **Step 3: Create the registry API client**
 
 Create `packages/web/src/RegistryClient.res`:
 
@@ -1221,7 +1233,7 @@ let detail = async (~fetcher: fetcher, ~apiBase, ~packageName, ~author) => {
 }
 ```
 
-- [ ] **Step 4: Replace `Pages.res` with full rendering**
+- [x] **Step 4: Replace `Pages.res` with full rendering**
 
 Replace `packages/web/src/Pages.res` with:
 
@@ -1373,7 +1385,7 @@ let registryError = () =>
   )
 ```
 
-- [ ] **Step 5: Replace the web Worker routing**
+- [x] **Step 5: Replace the web Worker routing**
 
 Replace `packages/web/src/Worker.res` with:
 
@@ -1481,7 +1493,7 @@ let fetch = async (request, env, ctx) => await fetchWith(~fetcher=globalFetch, r
 %%raw("export default { fetch }")
 ```
 
-- [ ] **Step 6: Run the web Worker tests**
+- [x] **Step 6: Run the web Worker tests**
 
 Run:
 
@@ -1491,7 +1503,7 @@ pnpm --filter @jvlk/rescript-bindings-web test
 
 Expected: PASS with final line `Web Worker_test.res passed`.
 
-- [ ] **Step 7: Commit the web rendering implementation**
+- [x] **Step 7: Commit the web rendering implementation**
 
 ```bash
 git add packages/web/src packages/web/test
@@ -1506,7 +1518,7 @@ git commit -m "feat: render binding registry frontend"
 - Verify: `packages/cli/src/Worker.res`
 - Verify: `packages/web/src/Worker.res`
 
-- [ ] **Step 1: Update root scripts**
+- [x] **Step 1: Update root scripts**
 
 Modify the root `package.json` scripts:
 
@@ -1518,7 +1530,7 @@ Modify the root `package.json` scripts:
 }
 ```
 
-- [ ] **Step 2: Run full build**
+- [x] **Step 2: Run full build**
 
 Run:
 
@@ -1528,7 +1540,7 @@ pnpm build
 
 Expected: PASS. The CLI package builds `packages/cli/bin/index.mjs`, and the web package builds `packages/web/dist/worker.mjs`.
 
-- [ ] **Step 3: Run full test suite**
+- [x] **Step 3: Run full test suite**
 
 Run:
 
@@ -1538,7 +1550,7 @@ pnpm test
 
 Expected: PASS. The final output includes `D1_test.res passed` from the CLI package and `Web Worker_test.res passed` from the web package.
 
-- [ ] **Step 4: Run API endpoint smoke through the Worker test harness**
+- [x] **Step 4: Run API endpoint smoke through the Worker test harness**
 
 Run:
 
@@ -1548,7 +1560,7 @@ node packages/cli/test/DiscoveryApi_test.res.mjs
 
 Expected: PASS with final line `DiscoveryApi_test.res passed`.
 
-- [ ] **Step 5: Start the web Worker locally**
+- [x] **Step 5: Start the web Worker locally**
 
 Run:
 
@@ -1558,7 +1570,7 @@ pnpm --filter @jvlk/rescript-bindings-web dev
 
 Expected: Wrangler starts a local Worker URL, usually `http://127.0.0.1:8787`.
 
-- [ ] **Step 6: Check the homepage HTML**
+- [x] **Step 6: Check the homepage HTML**
 
 In another terminal, run:
 
@@ -1568,7 +1580,7 @@ curl -i http://127.0.0.1:8787/
 
 Expected: response status `200`, `content-type: text/html; charset=utf-8`, and body text containing `ReScript Bindings`.
 
-- [ ] **Step 7: Check the search page HTML**
+- [x] **Step 7: Check the search page HTML**
 
 Run:
 
@@ -1578,11 +1590,11 @@ curl -i 'http://127.0.0.1:8787/?q=react'
 
 Expected: response status `200` and body text containing `Search results`. If the production registry has no matching rows yet, the body can contain `No bindings found.`
 
-- [ ] **Step 8: Stop the local Worker**
+- [x] **Step 8: Stop the local Worker**
 
 Stop Wrangler with `Ctrl-C`.
 
-- [ ] **Step 9: Commit root scripts**
+- [x] **Step 9: Commit root scripts**
 
 ```bash
 git add package.json

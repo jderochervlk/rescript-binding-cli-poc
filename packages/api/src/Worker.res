@@ -10,6 +10,7 @@ open RegistryTypes
 @send external repeat: (string, int) => string = "repeat"
 @send external trim: string => string = "trim"
 @send external charAt: (string, int) => string = "charAt"
+@send external toLowerCase: string => string = "toLowerCase"
 @val external atob: string => string = "atob"
 @val external decodeURIComponent: string => string = "decodeURIComponent"
 @scope("JSON") @val external parseJson: string => 'a = "parse"
@@ -27,6 +28,8 @@ type statement
 type boundStatement
 type accessIdentity
 type accessGrant
+type accessStatus
+type meResponse
 type crypto
 type subtleCrypto
 type textEncoder
@@ -35,6 +38,17 @@ type arrayBuffer
 type date
 
 type queryResult<'row> = {results: array<'row>}
+
+type approvedPublisherRow = {
+  github_login: string,
+  email: option<string>,
+  active: int,
+}
+
+type publisherAuthorization = {
+  approved: bool,
+  admin: bool,
+}
 
 type releaseRow = {
   id: string,
@@ -78,6 +92,13 @@ type publishPayload = {
   rescriptRange: option<string>,
   description: option<string>,
   files: option<array<publishPayloadFile>>,
+}
+
+@schema
+type adminPublisherPayload = {
+  githubLogin: string,
+  email: string,
+  active: option<bool>,
 }
 
 type releaseResponse = {
@@ -208,6 +229,7 @@ external responseInit: (~status: int, ~headers: array<array<string>>, unit) => r
 @get external urlSearchParams: url => searchParams = "searchParams"
 @return(nullable) @send external searchParamGet: (searchParams, string) => option<string> = "get"
 @get external envDb: env => option<db> = "DB"
+@get external envPublisherAdminIdentities: env => option<string> = "PUBLISHER_ADMIN_IDENTITIES"
 @send external prepare: (db, string) => statement = "prepare"
 @send external bind1: (statement, string) => boundStatement = "bind"
 @send external bind2: (statement, string, string) => boundStatement = "bind"
@@ -217,6 +239,15 @@ external responseInit: (~status: int, ~headers: array<array<string>>, unit) => r
 external bind5Strings: (statement, string, string, string, string, string) => boundStatement =
   "bind"
 @send external bind5: (statement, string, string, string, string, int) => boundStatement = "bind"
+@send
+external bind5Publisher: (
+  statement,
+  string,
+  Null.t<string>,
+  int,
+  string,
+  string,
+) => boundStatement = "bind"
 @send
 external bind6Strings: (
   statement,
@@ -264,6 +295,21 @@ external bind13: (
 @return(nullable) @get external identityEmail: accessIdentity => option<string> = "email"
 @return(nullable) @get external identityDisplayName: accessIdentity => option<string> = "displayName"
 @obj external accessGrant: (~authenticated: bool, unit) => accessGrant = ""
+@obj
+external accessStatus: (
+  ~authenticated: bool,
+  ~publisherApproved: bool,
+  ~admin: bool,
+  unit,
+) => accessStatus = ""
+@obj
+external meResponse: (
+  ~githubLogin: Null.t<string>,
+  ~displayName: Null.t<string>,
+  ~email: Null.t<string>,
+  ~access: accessStatus,
+  unit,
+) => meResponse = ""
 @obj
 external accessIdentity: (
   ~githubLogin: Null.t<string>,
@@ -413,6 +459,7 @@ let json = (~status=200, body) =>
   )
 
 let badRequest = message => json(~status=400, {"error": message})
+let forbidden = message => json(~status=403, {"error": message})
 
 let decodeBase64Url = value => {
   let normalized = value->replaceAll("-", "+")->replaceAll("_", "/")
@@ -535,8 +582,86 @@ let publisherLabelFrom = identity => {
 }
 
 let publisherDisplayNameFrom = (identity, fallback) => {
-  identityDisplayName(identity)->Belt.Option.getWithDefault(fallback)
+  switch identityDisplayName(identity) {
+  | Some(displayName) => displayName
+  | None => fallback
+  }
 }
+
+let normalizedIdentityValue = value => value->trim->toLowerCase
+
+let identityMatches = (~identity, ~candidate) => {
+  let candidate = candidate->normalizedIdentityValue
+  if candidate == "" {
+    false
+  } else {
+    let githubMatches = switch identityGithubLogin(identity) {
+    | Some(githubLogin) => githubLogin->normalizedIdentityValue == candidate
+    | None => false
+    }
+    let emailMatches = switch identityEmail(identity) {
+    | Some(email) => email->normalizedIdentityValue == candidate
+    | None => false
+    }
+    githubMatches || emailMatches
+  }
+}
+
+let isConfiguredAdmin = (~env, ~identity) =>
+  switch env->envPublisherAdminIdentities {
+  | Some(configuredIdentities) =>
+    configuredIdentities
+    ->split(",")
+    ->Array.some(candidate => identityMatches(~identity, ~candidate))
+  | None => false
+  }
+
+let publisherAuthorization = async (~db, ~env, ~identity): publisherAuthorization => {
+  let admin = isConfiguredAdmin(~env, ~identity)
+  if admin {
+    {approved: true, admin: true}
+  } else {
+    let githubLogin = switch identityGithubLogin(identity) {
+    | Some(githubLogin) => githubLogin
+    | None => ""
+    }
+    let email = switch identityEmail(identity) {
+    | Some(email) => email
+    | None => ""
+    }
+    let approvedPublisher: option<approvedPublisherRow> = await db
+    ->prepare(`SELECT github_login, email, active
+      FROM approved_publishers
+      WHERE active = 1
+        AND (
+          LOWER(github_login) = LOWER(?)
+          OR LOWER(email) = LOWER(?)
+        )
+      LIMIT 1`)
+    ->bind2(githubLogin, email)
+    ->first
+
+    let approved = switch approvedPublisher {
+    | Some(_) => true
+    | None => false
+    }
+    {approved, admin: false}
+  }
+}
+
+let responseForIdentity = (~identity, ~authorization) =>
+  meResponse(
+    ~githubLogin=identityGithubLogin(identity)->Null.fromOption,
+    ~displayName=identityDisplayName(identity)->Null.fromOption,
+    ~email=identityEmail(identity)->Null.fromOption,
+    ~access=accessStatus(
+      ~authenticated=true,
+      ~publisherApproved=authorization.approved,
+      ~admin=authorization.admin,
+      (),
+    ),
+    (),
+  )
 
 let publishedReleaseLimitFrom = url => {
   switch url->urlSearchParams->searchParamGet("all") {
@@ -974,6 +1099,14 @@ let handleMyPublishedReleases = async (~env, ~url, ~identity) =>
     json({"releases": result.results->Array.map(releaseFromRow)})
   }
 
+let handleMe = async (~env, ~identity) =>
+  switch requireDb(env) {
+  | Error(response) => response
+  | Ok(db) =>
+    let authorization = await publisherAuthorization(~db, ~env, ~identity)
+    json(responseForIdentity(~identity, ~authorization))
+  }
+
 let handleDeletePublishedRelease = async (~env, ~releaseId, ~identity) =>
   switch requireDb(env) {
   | Error(response) => response
@@ -1069,6 +1202,71 @@ let filesWithShaFrom = async (files: array<normalizedFileEntry>) => {
 
   filesWithSha
 }
+
+let normalizeAdminPublisherPayload = (payload: adminPublisherPayload) => {
+  let githubLogin = stringField(Some(payload.githubLogin), "githubLogin")->toLowerCase
+  let email = Some(stringField(Some(payload.email), "email")->toLowerCase)
+  let active = switch payload.active {
+  | Some(active) => active
+  | None => true
+  }
+
+  (githubLogin, email, active)
+}
+
+let handleAdminPublishers = async (~request, ~env, ~identity) =>
+  switch requireDb(env) {
+  | Error(response) => response
+  | Ok(db) =>
+    let authorization = await publisherAuthorization(~db, ~env, ~identity)
+    if !authorization.admin {
+      forbidden("Publisher administration requires a configured administrator identity")
+    } else {
+      let payloadResult = try {
+        let payload = (await request->requestJson)->S.parseOrThrow(
+          ~to=adminPublisherPayloadSchema,
+        )
+        Ok(normalizeAdminPublisherPayload(payload))
+      } catch {
+      | error => Error(validationMessageFrom(error))
+      }
+
+      switch payloadResult {
+      | Error(message) => badRequest(message)
+      | Ok((githubLogin, email, active)) =>
+        let addedAt = makeDate()->toISOString
+        let addedBy = publisherLabelFrom(identity)
+        let _ = await db
+        ->prepare(`INSERT INTO approved_publishers (
+            github_login,
+            email,
+            active,
+            added_at,
+            added_by
+          ) VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(github_login) DO UPDATE SET
+            email = excluded.email,
+            active = excluded.active,
+            added_at = excluded.added_at,
+            added_by = excluded.added_by`)
+        ->bind5Publisher(
+          githubLogin,
+          email->Null.fromOption,
+          if active {1} else {0},
+          addedAt,
+          addedBy,
+        )
+        ->run
+
+        json({
+          "githubLogin": githubLogin,
+          "email": email->Null.fromOption,
+          "active": active,
+          "updatedBy": addedBy,
+        })
+      }
+    }
+  }
 
 let insertRelease = async (~db, ~input: publishInput, ~files, ~identity) => {
   let variantSlug = Validation.safeSlug(input.variantLabel)
@@ -1252,43 +1450,52 @@ let handlePublish = async (~request, ~env, ~identity) =>
   switch requireDb(env) {
   | Error(response) => response
   | Ok(db) =>
-    let payloadResult = try {
-      Ok(await request->requestJson)
-    } catch {
-    | _ => Error("Request body must be JSON")
-    }
-
-    switch payloadResult {
-    | Error(message) => badRequest(message)
-    | Ok(payload) =>
-      let inputResult = try {
-        let input = normalizePublishPayload(payload)
-        let files = validatePublishInput(input)
-        Ok((input, files))
+    let authorization = await publisherAuthorization(~db, ~env, ~identity)
+    if !authorization.approved {
+      forbidden("Publisher is not approved")
+    } else {
+      let payloadResult = try {
+        Ok(await request->requestJson)
       } catch {
-      | error => Error(validationMessageFrom(error))
+      | _ => Error("Request body must be JSON")
       }
 
-      switch inputResult {
+      switch payloadResult {
       | Error(message) => badRequest(message)
-      | Ok((input, files)) =>
-        try {
-          let result = await insertRelease(~db, ~input, ~files, ~identity)
-          json(
-            ~status=if result["duplicate"] {
-              200
-            } else {
-              201
-            },
-            result,
-          )
+      | Ok(payload) =>
+        let inputResult = try {
+          let input = normalizePublishPayload(payload)
+          let files = validatePublishInput(input)
+          Ok((input, files))
         } catch {
-        | error =>
-          let message = switch error->JsExn.fromException {
-          | Some(jsError) => jsError->JsExn.message->Belt.Option.getWithDefault("Publish failed")
-          | None => "Publish failed"
+        | error => Error(validationMessageFrom(error))
+        }
+
+        switch inputResult {
+        | Error(message) => badRequest(message)
+        | Ok((input, files)) =>
+          try {
+            let result = await insertRelease(~db, ~input, ~files, ~identity)
+            json(
+              ~status=if result["duplicate"] {
+                200
+              } else {
+                201
+              },
+              result,
+            )
+          } catch {
+          | error =>
+            let message = switch error->JsExn.fromException {
+            | Some(jsError) =>
+              switch jsError->JsExn.message {
+              | Some(message) => message
+              | None => "Publish failed"
+              }
+            | None => "Publish failed"
+            }
+            json(~status=500, {"error": message})
           }
-          json(~status=500, {"error": message})
         }
       }
     }
@@ -1311,7 +1518,7 @@ let fetch = async (request, env, _ctx) => {
       await handleGetBindingAuthorDetail(~env, ~packageName, ~author)
     | Me =>
       switch identity {
-      | Some(identity) => json(identity)
+      | Some(identity) => await handleMe(~env, ~identity)
       | None => json(~status=401, {"error": "Missing Access identity"})
       }
     | MyPublishedReleases =>
@@ -1329,7 +1536,12 @@ let fetch = async (request, env, _ctx) => {
       | Some(identity) => await handleDeletePublishedRelease(~env, ~releaseId, ~identity)
       | None => json(~status=401, {"error": "Missing Access identity"})
       }
-    | AdminPublishers | NotFound => json(~status=404, {"error": "Not found"})
+    | AdminPublishers =>
+      switch identity {
+      | Some(identity) => await handleAdminPublishers(~request, ~env, ~identity)
+      | None => json(~status=401, {"error": "Missing Access identity"})
+      }
+    | NotFound => json(~status=404, {"error": "Not found"})
     }
   }
 }

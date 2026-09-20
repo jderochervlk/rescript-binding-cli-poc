@@ -17,14 +17,31 @@ type accessBody
 @get external duplicate: jsonBody => bool = "duplicate"
 @get external overwrittenReleaseIds: jsonBody => array<string> = "overwrittenReleaseIds"
 @get external deleted: jsonBody => bool = "deleted"
+@get external adminPublisherGithubLogin: jsonBody => string = "githubLogin"
+@get external adminPublisherEmail: jsonBody => string = "email"
+@get external adminPublisherActive: jsonBody => bool = "active"
 @get external email: accessBody => string = "email"
 @get external githubLogin: accessBody => 'value = "githubLogin"
 @get external displayName: accessBody => 'value = "displayName"
 @get external access: accessBody => 'access = "access"
 @get external authenticated: 'access => bool = "authenticated"
+@get external publisherApproved: 'access => bool = "publisherApproved"
+@get external admin: 'access => bool = "admin"
 @get external releaseIdFromRelease: release => string = "id"
 @get external compatibilityRank: release => int = "compatibilityRank"
 @get external relativePath: releaseFile => string = "relativePath"
+@get external requiredEnvDb: Worker.env => Worker.db = "DB"
+@obj external makeEnv: unit => Worker.env = ""
+@set external setEnvDb: (Worker.env, Worker.db) => unit = "DB"
+@set external setEnvPublisherAdminIdentities: (Worker.env, string) => unit =
+  "PUBLISHER_ADMIN_IDENTITIES"
+
+let asAdminEnv = env => {
+  let adminEnv = makeEnv()
+  adminEnv->setEnvDb(env->requiredEnvDb)
+  adminEnv->setEnvPublisherAdminIdentities("dev@example.com")
+  adminEnv
+}
 
 let isNull = value => {
   let _ = value
@@ -120,6 +137,8 @@ let fakeDb: Worker.env = %raw(`({
     batch: async () => [],
   },
 })`)
+let fakeDbBase = fakeDb
+let fakeDb = asAdminEnv(fakeDb)
 
 let duplicatePublishDb: Worker.env = %raw(`({
   DB: {
@@ -141,6 +160,7 @@ let duplicatePublishDb: Worker.env = %raw(`({
     },
   },
 })`)
+let duplicatePublishDb = asAdminEnv(duplicatePublishDb)
 
 let overwrittenUpdateCount = ref(0)
 let insertedPeerPackageRange = ref("")
@@ -195,6 +215,7 @@ let overwritePublishDb: Worker.env = %raw(`({
     },
   },
 })`)
+let overwritePublishDb = asAdminEnv(overwritePublishDb)
 
 let scopedPackageParam = ref("")
 let scopedPackageDb: Worker.env = %raw(`({
@@ -280,6 +301,7 @@ let myPublishedDb: Worker.env = %raw(`({
     },
   },
 })`)
+let myPublishedDb = asAdminEnv(myPublishedDb)
 
 let run = async () => {
   let oldProtectedPath = await Worker.fetch(makeRequest(publicApiBaseUrl ++ "/v1/me"), emptyEnv, ctx)
@@ -344,6 +366,27 @@ let run = async () => {
     ctx,
   )
   TestSupport.assertTrue(responseStatus(publishUnauthorized) == 401, "publish route requires access identity")
+
+  let publishUnapproved = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/releases",
+      requestInit(
+        ~method="POST",
+        ~headers=jsonAccessHeaders(makeJwt({"email": "unapproved@example.com"})),
+        ~body=TestSupport.stringify({
+          "packageName": "is-even",
+          "variantLabel": "default",
+          "peerPackageRange": "^1.0.0",
+          "rescriptRange": "^12.0.0",
+          "files": [{"relativePath": "Binding.res", "content": "let x = 1\n"}],
+        }),
+        (),
+      ),
+    ),
+    fakeDbBase,
+    ctx,
+  )
+  TestSupport.assertTrue(responseStatus(publishUnapproved) == 403, "authenticated but unapproved publishers are rejected")
 
   let publishBadJson = await Worker.fetch(
     makeRequestWithInit(
@@ -506,12 +549,113 @@ let run = async () => {
   )
   TestSupport.assertTrue(responseStatus(adminUnauthorized) == 401, "admin route requires access identity")
 
+  let adminForbidden = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/admin/publishers",
+      requestInit(
+        ~method="POST",
+        ~headers=jsonAccessHeaders(makeJwt({"email": "unapproved@example.com"})),
+        ~body=TestSupport.stringify({"githubLogin": "new-publisher", "active": true}),
+        (),
+      ),
+    ),
+    fakeDbBase,
+    ctx,
+  )
+  TestSupport.assertTrue(responseStatus(adminForbidden) == 403, "publisher administration requires a configured admin")
+
+  let adminUpsert = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/admin/publishers",
+      requestInit(
+        ~method="POST",
+        ~headers=jsonAccessHeaders(makeJwt({"email": "dev@example.com"})),
+        ~body=TestSupport.stringify({
+          "githubLogin": "New-Publisher",
+          "email": "Publisher@Example.com",
+          "active": true,
+        }),
+        (),
+      ),
+    ),
+    fakeDb,
+    ctx,
+  )
+  TestSupport.assertTrue(responseStatus(adminUpsert) == 200, "configured admin can approve a publisher")
+  let adminUpsertBody: jsonBody = await adminUpsert->responseJson
+  TestSupport.assertStringEquals(
+    adminUpsertBody->adminPublisherGithubLogin,
+    "new-publisher",
+    "publisher login is normalized before it is used as the upsert key",
+  )
+  TestSupport.assertStringEquals(
+    adminUpsertBody->adminPublisherEmail,
+    "publisher@example.com",
+    "publisher email is normalized before storage",
+  )
+  TestSupport.assertTrue(adminUpsertBody->adminPublisherActive, "publisher is activated")
+
+  let missingPublisherEmail = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/admin/publishers",
+      requestInit(
+        ~method="POST",
+        ~headers=jsonAccessHeaders(makeJwt({"email": "dev@example.com"})),
+        ~body=TestSupport.stringify({"githubLogin": "login-only", "active": true}),
+        (),
+      ),
+    ),
+    fakeDb,
+    ctx,
+  )
+  TestSupport.assertTrue(
+    responseStatus(missingPublisherEmail) == 400,
+    "publisher approval requires an email until GitHub login claims are available",
+  )
+
+  let invalidPublisherActive = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/admin/publishers",
+      requestInit(
+        ~method="POST",
+        ~headers=jsonAccessHeaders(makeJwt({"email": "dev@example.com"})),
+        ~body=TestSupport.stringify({
+          "githubLogin": "new-publisher",
+          "email": "publisher@example.com",
+          "active": "false",
+        }),
+        (),
+      ),
+    ),
+    fakeDb,
+    ctx,
+  )
+  TestSupport.assertTrue(
+    responseStatus(invalidPublisherActive) == 400,
+    "publisher approval rejects a non-boolean active value",
+  )
+
+  let unapprovedMe = await Worker.fetch(
+    makeRequestWithInit(
+      publishApiBaseUrl ++ "/v1/me",
+      requestInit(~headers=accessHeaders(makeJwt({"email": "unapproved@example.com"})), ()),
+    ),
+    fakeDbBase,
+    ctx,
+  )
+  TestSupport.assertTrue(responseStatus(unapprovedMe) == 200, "authenticated identities can inspect publisher approval")
+  let unapprovedBody: accessBody = await unapprovedMe->responseJson
+  TestSupport.assertTrue(
+    !(unapprovedBody->access->publisherApproved),
+    "unapproved identity is reported by /v1/me",
+  )
+
   let authorized = await Worker.fetch(
     makeRequestWithInit(
       publishApiBaseUrl ++ "/v1/me",
       requestInit(~headers=accessHeaders(makeJwt({"email": "dev@example.com"})), ()),
     ),
-    emptyEnv,
+    fakeDb,
     ctx,
   )
   TestSupport.assertTrue(responseStatus(authorized) == 200, "access jwt allows /v1/me")
@@ -521,6 +665,8 @@ let run = async () => {
   TestSupport.assertTrue(body->githubLogin->isNull, "worker leaves github login null in this slice")
   TestSupport.assertTrue(body->displayName->isNull, "worker leaves display name null in this slice")
   TestSupport.assertTrue(body->access->authenticated, "worker marks response as authenticated")
+  TestSupport.assertTrue(body->access->publisherApproved, "configured admin is approved to publish")
+  TestSupport.assertTrue(body->access->admin, "configured admin is identified by /v1/me")
 
   Console.log("Worker_test.res passed")
 }

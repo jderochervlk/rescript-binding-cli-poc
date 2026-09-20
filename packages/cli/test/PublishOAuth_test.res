@@ -321,6 +321,43 @@ let run = async () => {
   assertStringEquals(reuseMeAuth.contents, "Bearer cached-token", "reuse flow uses cached bearer token for /v1/me")
   assertAuthIdentity(reuseResult.githubLogin, "cached-dev", "reuse flow returns cached identity result")
 
+  let unapprovedMessage = ref("")
+  try {
+    let _ = await PublishOAuth.runPublishAuth(Some(options(~deps=deps(
+      ~now=() => now,
+      ~platform="linux",
+      ~homeDir="/home/josh",
+      ~readCache=readCache(tokenBundle(
+        ~accessToken="unapproved-token",
+        ~refreshToken="oauth:unapproved-refresh",
+        ~expiresAt=now +. 120000.0,
+        ~clientId="unapproved-client",
+        (),
+      )),
+      ~writeCache=noWriteCache("unapproved cached token should not persist cache"),
+      ~fetch=async (url, _init) => {
+        if url == PublishOAuth.publishBaseUrl ++ "/v1/me" {
+          jsonResponse({
+            "email": "unapproved@example.com",
+            "access": {"authenticated": true, "publisherApproved": false, "admin": false},
+          })
+        } else {
+          expectUnexpected("unapproved publisher flow", url)
+        }
+      },
+      ~openBrowser=noBrowser("unapproved cached token should not open a browser"),
+      ~createLoopbackServer=noLoopback("unapproved cached token should not create a loopback server"),
+      (),
+    ), ())))
+    throw(Failure("unapproved publisher authentication should fail"))
+  } catch {
+  | error => unapprovedMessage := messageFromError(error)
+  }
+  assertTrue(
+    unapprovedMessage.contents->includes("not approved to publish"),
+    "publish authentication fails before prompting for unapproved identities",
+  )
+
   let refreshTokenBody = ref("")
   let refreshWrite = ref(None)
   let refreshMeAuth = ref("")
@@ -592,14 +629,87 @@ let run = async () => {
   assertAuthIdentity(interactiveResult.displayName, "Interactive Dev", "interactive flow returns authenticated identity")
   assertStringEquals(savedInteractiveBundle.contents->writtenBundle->bundleRefreshToken, "oauth:interactive-refresh", "interactive flow persists refresh token")
 
+  let unapprovedPublishPromptCalled = ref(false)
+  let unapprovedPublishMessage = ref("")
+  try {
+    await PublishOAuth.runPublish(Some(options(~deps=deps(
+      ~now=() => now,
+      ~platform="linux",
+      ~homeDir="/home/josh",
+      ~readCache=readCache(tokenBundle(
+        ~accessToken="unapproved-publish-token",
+        ~refreshToken="oauth:unapproved-publish-refresh",
+        ~expiresAt=now +. 120000.0,
+        ~clientId="unapproved-publish-client",
+        (),
+      )),
+      ~writeCache=noWriteCache("unapproved publish should not persist cache"),
+      ~fetch=async (url, _init) => {
+        if url == PublishOAuth.publishBaseUrl ++ "/v1/me" {
+          jsonResponse({
+            "email": "unapproved@example.com",
+            "access": {"authenticated": true, "publisherApproved": false, "admin": false},
+          })
+        } else {
+          expectUnexpected("unapproved publish command", url)
+        }
+      },
+      ~openBrowser=noBrowser("unapproved publish should not open a browser"),
+      ~createLoopbackServer=noLoopback("unapproved publish should not create a loopback server"),
+      ~promptForPublishInput=async _ => {
+        unapprovedPublishPromptCalled := true
+        None
+      },
+      (),
+    ), ())))
+    throw(Failure("unapproved publish command should fail"))
+  } catch {
+  | error => unapprovedPublishMessage := messageFromError(error)
+  }
+  assertTrue(
+    !unapprovedPublishPromptCalled.contents,
+    "unapproved publish command fails before collecting publish input",
+  )
+  assertTrue(
+    unapprovedPublishMessage.contents->includes("not approved to publish"),
+    "unapproved publish command reports the approval failure",
+  )
+
+  let publishCancelPromptCalled = ref(false)
   let publishCancelLogs = await captureConsoleLog(async () => {
     await PublishOAuth.runPublish(Some(options(~deps=deps(
-      ~fetch=async (_url, _init) => throw(Failure("cancelled publish should not call fetch")),
-      ~promptForPublishInput=async _ => None,
+      ~now=() => now,
+      ~platform="linux",
+      ~homeDir="/home/josh",
+      ~readCache=readCache(tokenBundle(
+        ~accessToken="cancelled-publish-token",
+        ~refreshToken="oauth:cancelled-publish-refresh",
+        ~expiresAt=now +. 120000.0,
+        ~clientId="cancelled-publish-client",
+        (),
+      )),
+      ~writeCache=noWriteCache("cancelled publish should not persist cache"),
+      ~fetch=async (url, _init) => {
+        if url == PublishOAuth.publishBaseUrl ++ "/v1/me" {
+          jsonResponse({
+            "email": "publisher@example.com",
+            "access": {"authenticated": true, "publisherApproved": true, "admin": false},
+          })
+        } else {
+          expectUnexpected("cancelled publish", url)
+        }
+      },
+      ~openBrowser=noBrowser("cancelled publish should not open a browser"),
+      ~createLoopbackServer=noLoopback("cancelled publish should not create a loopback server"),
+      ~promptForPublishInput=async _ => {
+        publishCancelPromptCalled := true
+        None
+      },
       (),
     ), ())))
   })
-  assertTrue(publishCancelLogs->some(message => message == "Publish cancelled."), "publish cancellation returns before authentication")
+  assertTrue(publishCancelPromptCalled.contents, "approved publishers are prompted for publish input")
+  assertTrue(publishCancelLogs->some(message => message == "Publish cancelled."), "publish cancellation is reported after authentication")
 
   let publishPostAuth = ref("")
   let publishPostBody = ref(None)

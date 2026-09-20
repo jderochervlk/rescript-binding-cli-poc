@@ -34,6 +34,7 @@ type readlineOptions
 type searchConfig
 type searchChoice
 type identityPayload
+type identityAccess
 type promptContext
 type url
 type searchParams
@@ -262,6 +263,8 @@ external identityPayloadGithubLogin: identityPayload => option<string> = "github
 @return(nullable) @get
 external identityPayloadDisplayName: identityPayload => option<string> = "displayName"
 @return(nullable) @get external identityPayloadEmail: identityPayload => option<string> = "email"
+@get external identityPayloadAccess: identityPayload => identityAccess = "access"
+@get external identityAccessPublisherApproved: identityAccess => option<bool> = "publisherApproved"
 @get external publishResultDuplicate: 'result => bool = "duplicate"
 @get external publishResultReleaseId: 'result => string = "releaseId"
 @get external publishResultPackageName: 'result => string = "packageName"
@@ -731,7 +734,10 @@ let fetchCurrentIdentity = async (~accessToken, ~fetchImpl) => {
     getAuthFetchInit(~method="GET", ~headers=authHeaders(accessToken), ()),
   )
   let identity: identityPayload = await readJson(response)
-  normalizeIdentity(identity)
+  switch identity->identityPayloadAccess->identityAccessPublisherApproved {
+  | Some(false) => fail("Your account is authenticated but is not approved to publish bindings")
+  | Some(true) | None => normalizeIdentity(identity)
+  }
 }
 
 let fetchCurrentSession = async (~accessToken, ~fetchImpl) => {
@@ -1294,21 +1300,36 @@ let deletePublishedRelease = async (~releaseId, ~accessToken, ~fetchImpl) =>
 
 let runPublish = async maybeOptions => {
   let deps = depsFromOptions(maybeOptions)
-  let fetchImpl = deps->depFetch->Belt.Option.orElse(globalFetch)
+  let fetchImpl = switch deps->depFetch {
+  | Some(fetchImpl) => Some(fetchImpl)
+  | None => globalFetch
+  }
   let fetchImpl = switch fetchImpl {
   | Some(fetchImpl) => fetchImpl
   | None => fail("Publish helper requires a fetch implementation")
   }
-  let projectCwd = deps->depCwd->Belt.Option.getWithDefault(cwd())
-  let prompt = deps->depPromptForPublishInput->Belt.Option.getWithDefault(promptForPublishInput)
-  let promptStdin = deps->depStdin->Belt.Option.getWithDefault(stdin)
-  let promptStdout = deps->depStdout->Belt.Option.getWithDefault(stdout)
+  let projectCwd = switch deps->depCwd {
+  | Some(projectCwd) => projectCwd
+  | None => cwd()
+  }
+  let prompt = switch deps->depPromptForPublishInput {
+  | Some(prompt) => prompt
+  | None => promptForPublishInput
+  }
+  let promptStdin = switch deps->depStdin {
+  | Some(promptStdin) => promptStdin
+  | None => stdin
+  }
+  let promptStdout = switch deps->depStdout {
+  | Some(promptStdout) => promptStdout
+  | None => stdout
+  }
+  let session = await runPublishAuthSession(maybeOptions)
   let input = await prompt(promptInputObj(~cwd=projectCwd, ~stdin=promptStdin, ~stdout=promptStdout, ()))
 
   switch input {
   | None => Console.log("Publish cancelled.")
   | Some(input) =>
-    let session = await runPublishAuthSession(maybeOptions)
     let result = await publishRelease(~input, ~accessToken=session.accessToken, ~fetchImpl)
     if result->publishResultDuplicate {
       Console.log("Release already exists: " ++ result->publishResultReleaseId)

@@ -2,44 +2,25 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build browser-based Cloudflare Access Managed OAuth for `rescript binding publish`, cache tokens per user, and validate the authenticated session by calling protected `GET /v1/me`.
+**Goal:** Build browser-based Cloudflare Access Managed OAuth for `rescript-bindings publish`, cache tokens per user, and validate the authenticated session by calling protected `GET /api/publish/v1/me`.
 
-**Architecture:** Keep ReScript responsible for CLI parsing, publish entrypoint selection, and success/error messaging. Implement the OAuth protocol, dynamic client registration, loopback callback handling, token cache, refresh flow, and authenticated `/v1/me` fetch in a narrow JavaScript helper. Add a small Worker runtime shim that makes `wrangler.toml` valid and serves `GET /v1/me` by decoding the Access JWT payload.
+**Architecture:** ReScript owns CLI parsing, publish entrypoint selection, OAuth discovery, dynamic client registration, PKCE, loopback callback handling, token caching, refresh, and authenticated `/v1/me` validation. The registry Worker handles the protected identity response and D1-backed publisher authorization.
 
-**Tech Stack:** ReScript 12, Node.js ESM, Cloudflare Workers, Cloudflare Access Managed OAuth, Wrangler, plain Node test files
+**Tech Stack:** ReScript 12, Node.js ESM, Cloudflare Workers, Cloudflare Access Managed OAuth, Wrangler
 
 ## Execution Status
 
-Last synced: `2026-04-25`
+Last synced: `2026-09-19`
 
-- active implementation branch: `codex/publish-oauth`
-- implementation has been moved back into the main repo working tree at `/home/josh/Dev/rescript-binding-cli-poc`
-- previous worktree snapshot: `/home/josh/.config/superpowers/worktrees/rescript-binding-cli-poc/publish-oauth`
-- Task 1 is complete and committed in worktree commit `d0e200e` (`test: add oauth helper utility coverage`)
-- Task 2 is in progress in the main repo and currently uncommitted
-- Tasks 3 and 4 have not started yet
+- Tasks 1–4 are implemented on `main`.
+- OAuth logic was subsequently migrated from the planned JavaScript helper into `packages/cli/src/bindings/PublishOAuth.res`.
+- Cached-token reuse, refresh, revoked-token recovery, incomplete-refresh fallback, dynamic client registration, PKCE, loopback callbacks, and authorization URL construction have automated coverage.
+- CLI `publish` and `delete` use the authenticated session returned by the OAuth flow.
+- The Worker exposes `GET /api/publish/v1/me`, reports publisher approval, and enforces the D1 publisher allowlist on publish.
+- An authenticated but unapproved identity now fails before the CLI begins the publish prompt flow.
+- The remaining item is the environment-specific manual verification checklist at the end of this document.
 
-Current Task 2 state:
-
-- `src/js/PublishOAuth.mjs` has been moved into the main repo with the expanded discovery, registration, refresh, loopback, cache IO, and authenticated `/v1/me` fetch logic from the worktree
-- `package.json` in the main repo now includes `node test/PublishOAuth_test.mjs` in `npm test`
-- `test/PublishOAuth_test.mjs` has been restored in the main repo to the last passing Task 1 helper coverage so the moved baseline stays runnable
-- spec review for Task 2 passed once against that helper shape
-- code-quality review found follow-up issues worth fixing before proceeding:
-  - cached-token reuse should not require authorization-server discovery
-  - a revoked but locally unexpired access token should fall back to refresh before failing
-  - refresh should degrade to interactive auth when the cache lacks `clientId`
-  - helper tests should cover reuse, revoked-token recovery, incomplete refresh state, and parsed authorization URL assertions
-- the interrupted worktree deletion of `test/PublishOAuth_test.mjs` was not carried forward; the main repo is now the source of truth
-- sanity check after the move: `node test/PublishOAuth_test.mjs` passes in the main repo
-
-Recommended resume point:
-
-1. Extend `test/PublishOAuth_test.mjs` in the main repo with the stronger Task 2 coverage for reuse, revoked-token fallback, incomplete refresh state, and parsed authorization URL checks.
-2. Update `src/js/PublishOAuth.mjs` so reuse does not depend on discovery, revoked reuse falls back to refresh, and refresh without `clientId` falls back to interactive auth.
-3. Re-run `node test/PublishOAuth_test.mjs`.
-4. Re-run Task 2 code-quality review.
-5. Commit Task 2 from the main repo once the review passes.
+The task details and code snippets below are retained as implementation history. Paths referring to the former single-package layout or JavaScript helper are superseded by the current monorepo structure.
 
 ---
 
@@ -253,7 +234,7 @@ git commit -m "test: add oauth helper utility coverage"
 - Modify: `test/PublishOAuth_test.mjs`
 - Modify: `package.json`
 
-- [ ] **Step 1: Extend the helper test with refresh and interactive flow cases**
+- [x] **Step 1: Extend the helper test with refresh and interactive flow cases**
 
 ```js
 import {
@@ -474,12 +455,12 @@ assert(
 console.log("PublishOAuth_test.mjs passed");
 ```
 
-- [ ] **Step 2: Run the expanded helper test to verify it fails**
+- [x] **Step 2: Run the expanded helper test to verify it fails**
 
 Run: `node test/PublishOAuth_test.mjs`
 Expected: FAIL with `SyntaxError` or `TypeError` because `runPublishAuth` is not exported yet.
 
-- [ ] **Step 3: Implement dynamic client registration, PKCE, refresh, and `/v1/me` fetch**
+- [x] **Step 3: Implement dynamic client registration, PKCE, refresh, and `/v1/me` fetch**
 
 ```js
 import path from "node:path";
@@ -873,12 +854,12 @@ Also update the `test` script in `package.json`:
 }
 ```
 
-- [ ] **Step 4: Run the helper test to verify it passes**
+- [x] **Step 4: Run the helper test to verify it passes**
 
 Run: `node test/PublishOAuth_test.mjs`
 Expected: PASS with final line `PublishOAuth_test.mjs passed`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/js/PublishOAuth.mjs test/PublishOAuth_test.mjs package.json
@@ -897,7 +878,7 @@ git commit -m "feat: implement publish oauth helper"
 - Modify: `test/Cli_test.res`
 - Modify: `test/Bin_test.mjs`
 
-- [ ] **Step 1: Write the failing ReScript CLI tests**
+- [x] **Step 1: Write the failing ReScript CLI tests**
 
 ```rescript
 let assertTrue = (cond: bool, label: string) => {
@@ -1035,12 +1016,12 @@ assert(
 console.log("Bin_test.mjs passed");
 ```
 
-- [ ] **Step 2: Run the CLI tests to verify they fail**
+- [x] **Step 2: Run the CLI tests to verify they fail**
 
 Run: `npm run build && node test/Cli_test.res.mjs`
 Expected: FAIL during ReScript compilation because `Cli.publishBaseUrlFrom` and `Cli.authDisplayName` do not exist yet.
 
-- [ ] **Step 3: Implement typed auth interop and async publish command execution**
+- [x] **Step 3: Implement typed auth interop and async publish command execution**
 
 Create `src/core/PublishAuthTypes.res`:
 
@@ -1172,12 +1153,12 @@ let () = {
 }
 ```
 
-- [ ] **Step 4: Run the CLI tests to verify they pass**
+- [x] **Step 4: Run the CLI tests to verify they pass**
 
 Run: `npm run build && node test/Cli_test.res.mjs && node test/Bin_test.mjs`
 Expected: PASS with final lines `Cli_test.res passed` and `Bin_test.mjs passed`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/PublishAuthTypes.res src/bindings/PublishOAuth.res src/bindings/NodeProcess.res src/Cli.res src/Main.res test/Cli_test.res test/Bin_test.mjs
@@ -1193,7 +1174,7 @@ git commit -m "feat: wire publish oauth into cli"
 - Create: `test/Worker_test.mjs`
 - Modify: `package.json`
 
-- [ ] **Step 1: Write the failing Worker endpoint test**
+- [x] **Step 1: Write the failing Worker endpoint test**
 
 ```js
 import worker from "../src/Worker.mjs";
@@ -1232,12 +1213,12 @@ assert(body.access?.authenticated === true, "worker marks response as authentica
 console.log("Worker_test.mjs passed");
 ```
 
-- [ ] **Step 2: Run the Worker test to verify it fails**
+- [x] **Step 2: Run the Worker test to verify it fails**
 
 Run: `npm run build && node test/Worker_test.mjs`
 Expected: FAIL with `ERR_MODULE_NOT_FOUND` because `src/Worker.mjs` does not exist yet.
 
-- [ ] **Step 3: Implement the Worker runtime shim and protected `/v1/me`**
+- [x] **Step 3: Implement the Worker runtime shim and protected `/v1/me`**
 
 Modify `src/Worker.res`:
 
@@ -1416,7 +1397,7 @@ Update `package.json` so the full test suite includes the Worker test:
 }
 ```
 
-- [ ] **Step 4: Run the Worker test and full suite to verify they pass**
+- [x] **Step 4: Run the Worker test and full suite to verify they pass**
 
 Run: `npm test`
 Expected:
@@ -1428,7 +1409,7 @@ Expected:
 - `Bin_test.mjs passed`
 - `D1_test.mjs passed`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/Worker.res src/Worker.mjs test/Worker_test.mjs package.json
