@@ -328,20 +328,19 @@ let getAt = (items: array<'a>, index: int): option<'a> =>
     items[index]
   }
 
+let compatibilityFor = (projectRange, releaseRange) =>
+  switch projectRange {
+  | Some(projectRange) => Some(Semver.rangesIntersect(projectRange, releaseRange))
+  | None => None
+  }
+
 let computeCompatibility = (
   release: release,
   packageVersion: option<string>,
   rescriptVersion: option<string>,
 ): releaseWithCompatibility => {
-  let isPackageCompatible = switch packageVersion {
-  | None => None
-  | Some(version) => Some(version == release.peerPackageRange)
-  }
-
-  let isRescriptCompatible = switch rescriptVersion {
-  | None => None
-  | Some(version) => Some(version == release.rescriptRange)
-  }
+  let isPackageCompatible = compatibilityFor(packageVersion, release.peerPackageRange)
+  let isRescriptCompatible = compatibilityFor(rescriptVersion, release.rescriptRange)
 
   let packageScore = switch isPackageCompatible {
   | Some(true) => 2
@@ -692,10 +691,8 @@ let releaseFromRow = (row: releaseRow): releaseResponse => {
 
 let releaseWithCompatibility = (~row: releaseRow, ~packageVersion, ~rescriptVersion) => {
   let release = releaseFromRow(row)
-  let isPackageCompatible =
-    packageVersion->Belt.Option.map(version => version == release.peerPackageRange)
-  let isRescriptCompatible =
-    rescriptVersion->Belt.Option.map(version => version == release.rescriptRange)
+  let isPackageCompatible = compatibilityFor(packageVersion, release.peerPackageRange)
+  let isRescriptCompatible = compatibilityFor(rescriptVersion, release.rescriptRange)
   let compatibilityRank =
     switch isPackageCompatible {
     | Some(true) => 2

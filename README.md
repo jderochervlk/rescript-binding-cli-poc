@@ -14,7 +14,7 @@ Publish local bindings:
 pnpx @jvlk/rescript-bindings publish
 ```
 
-When the package argument is omitted, `add` offers an interactive selector populated from `peerDependencies`, `dependencies`, and `devDependencies` in the local `package.json`. The release picker shows author, JavaScript package compatibility, and ReScript compatibility in a table.
+When the package argument is omitted, `add` offers an interactive selector populated from `peerDependencies`, `dependencies`, and `devDependencies` in the local `package.json`. The release picker shows author, JavaScript package compatibility, and ReScript compatibility in a table. Compatibility is ranked by semver range overlap, including exact versions, caret and tilde ranges, and compound comparator ranges.
 
 For single-file releases, `add` prompts for the install file path and defaults to a ReScript-safe PascalCase filename derived from the package name, for example:
 

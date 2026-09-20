@@ -308,7 +308,7 @@ let run = async () => {
   TestSupport.assertTrue(responseStatus(oldProtectedPath) == 404, "publish identity route is not exposed under public api")
 
   let publicList = await Worker.fetch(
-    makeRequest(publicApiBaseUrl ++ "/v1/packages/is-even/releases?packageVersion=1.0.0&rescriptVersion=%5E12.0.0"),
+    makeRequest(publicApiBaseUrl ++ "/v1/packages/is-even/releases?packageVersion=1.0.0&rescriptVersion=12.1.0"),
     fakeDb,
     ctx,
   )
@@ -328,8 +328,19 @@ let run = async () => {
   let publicListBody = await publicList->responseJson
   let publicReleases = publicListBody->releases
   TestSupport.assertTrue(publicReleases->Array.length == 1, "public package release list returns releases")
-  TestSupport.assertStringEquals(publicReleases[0]->Belt.Option.getExn->releaseIdFromRelease, "release-1", "public package release list maps release id")
-  TestSupport.assertTrue(publicReleases[0]->Belt.Option.getExn->compatibilityRank == 3, "public package release list includes compatibility rank")
+  let firstPublicRelease = switch publicReleases->Array.get(0) {
+  | Some(release) => release
+  | None => throw(Failure("Expected one public package release"))
+  }
+  TestSupport.assertStringEquals(
+    firstPublicRelease->releaseIdFromRelease,
+    "release-1",
+    "public package release list maps release id",
+  )
+  TestSupport.assertTrue(
+    firstPublicRelease->compatibilityRank == 3,
+    "public package release list ranks a concrete ReScript version inside the release range",
+  )
 
   let publicRelease = await Worker.fetch(makeRequest(publicApiBaseUrl ++ "/v1/releases/release-1"), fakeDb, ctx)
   TestSupport.assertTrue(responseStatus(publicRelease) == 200, "public release payload is available")
