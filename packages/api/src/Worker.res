@@ -328,6 +328,7 @@ let getAt = (items: array<'a>, index: int): option<'a> =>
     items[index]
   }
 
+/** Compare a consuming project's dependency range with a binding release's supported range. */
 let compatibilityFor = (projectRange, releaseRange) =>
   switch projectRange {
   | Some(projectRange) => Some(Semver.rangesIntersect(projectRange, releaseRange))

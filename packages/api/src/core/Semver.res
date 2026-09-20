@@ -1,3 +1,16 @@
+/**
+  Semver range overlap for registry compatibility ranking.
+
+  The CLI sends the JavaScript package and ReScript dependency ranges declared by the
+  consuming project's `package.json`. A binding release declares the ranges it supports.
+  `rangesIntersect` answers whether at least one concrete version satisfies both ranges,
+  allowing compatible bindings to rank first even when the range strings are different.
+
+  This intentionally supports the range syntax accepted by the registry: exact versions,
+  caret ranges, tilde ranges, and space-separated `>`, `>=`, `<`, and `<=` comparators.
+  Unsupported syntax, such as prereleases, wildcards, `workspace:` protocols, and `||`, is
+  treated as incompatible instead of throwing from a public discovery request.
+*/
 type version = {
   major: int,
   minor: int,
@@ -206,6 +219,7 @@ let intersect = (left, right) => {
   },
 }
 
+/** Returns `true` when the two supported semver ranges share at least one version. */
 let rangesIntersect = (left, right) =>
   switch (left->parseRange, right->parseRange) {
   | (Some(left), Some(right)) => intersect(left, right)->isNonEmpty
