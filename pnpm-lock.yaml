@@ -32,11 +32,10 @@ importers:
         version: 4.90.0
 
   packages/cli:
-    dependencies:
+    devDependencies:
       '@jvlk/rescript-bindings-api':
         specifier: workspace:*
         version: link:../api
-    devDependencies:
       '@inquirer/prompts':
         specifier: ^8.4.2
         version: 8.4.2
