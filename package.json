@@ -1,14 +1,15 @@
 {
-    "name": "rescript-binding-cli-poc",
-    "private": true,
-    "scripts": {
-        "res:build": "rescript build",
-        "build": "pnpm --filter @jvlk/rescript-bindings-api run build && pnpm --filter @jvlk/rescript-bindings run build && pnpm --filter @jvlk/rescript-bindings-web run build",
-        "clean": "pnpm --filter @jvlk/rescript-bindings-api run clean && pnpm --filter @jvlk/rescript-bindings run clean && pnpm --filter @jvlk/rescript-bindings-web run clean",
-        "test": "pnpm --filter @jvlk/rescript-bindings-api run test && pnpm --filter @jvlk/rescript-bindings run test && pnpm --filter @jvlk/rescript-bindings-web run test"
-    },
-    "dependencies": {
-        "oxfmt": "^0.49.0"
-    },
-    "packageManager": "pnpm@11.1.2"
+  "name": "rescript-binding-cli-poc",
+  "private": true,
+  "scripts": {
+    "res:build": "rescript build",
+    "build": "pnpm --filter @jvlk/rescript-bindings-api run build && pnpm --filter @jvlk/rescript-bindings run build && pnpm --filter @jvlk/rescript-bindings-web run build",
+    "clean": "pnpm --filter @jvlk/rescript-bindings-api run clean && pnpm --filter @jvlk/rescript-bindings run clean && pnpm --filter @jvlk/rescript-bindings-web run clean",
+    "test": "pnpm --filter @jvlk/rescript-bindings-api run test && pnpm --filter @jvlk/rescript-bindings run test && pnpm --filter @jvlk/rescript-bindings-web run test",
+    "test:package": "pnpm --filter @jvlk/rescript-bindings run test:package"
+  },
+  "dependencies": {
+    "oxfmt": "^0.49.0"
+  },
+  "packageManager": "pnpm@11.1.2"
 }
