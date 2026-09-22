@@ -1,30 +1,53 @@
 {
-    "name": "@jvlk/rescript-bindings",
-    "version": "0.3.0",
-    "bin": "./bin/index.mjs",
-    "files": [
-        "README.md",
-        "package.json",
-        "bin"
-    ],
-    "type": "module",
-    "scripts": {
-        "watch:rescript": "rescript watch",
-        "watch:rolldown": "rolldown --watch -c",
-        "build": "pnpm run build:res && pnpm run build:bin",
-        "build:res": "rescript build",
-        "build:bin": "rolldown -c && node scripts/MakeBinExecutable.res.mjs",
-        "clean": "rescript clean",
-        "test": "pnpm run build && node test/Cli_test.res.mjs && node test/AddCore_test.res.mjs && node test/PublishCore_test.res.mjs && node test/PackageJson_test.res.mjs && node test/Add_test.res.mjs && node test/Update_test.res.mjs && node test/RegistryDiscovery_test.res.mjs && node test/PublishOAuth_test.res.mjs && node test/Bin_test.res.mjs"
-    },
-    "dependencies": {
-        "@jvlk/rescript-bindings-api": "workspace:*"
-    },
-    "devDependencies": {
-        "@inquirer/prompts": "^8.4.2",
-        "@rescript/runtime": "^12.2.0",
-        "commander": "^14.0.3",
-        "rescript": "^12.0.0",
-        "rolldown": "^1.0.0"
-    }
+  "name": "@jvlk/rescript-bindings",
+  "version": "0.4.0",
+  "description": "Discover, install, update, and publish ReScript bindings.",
+  "keywords": [
+    "bindings",
+    "cli",
+    "registry",
+    "rescript"
+  ],
+  "homepage": "https://github.com/jderochervlk/rescript-binding-cli-poc#readme",
+  "bugs": {
+    "url": "https://github.com/jderochervlk/rescript-binding-cli-poc/issues"
+  },
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jderochervlk/rescript-binding-cli-poc.git",
+    "directory": "packages/cli"
+  },
+  "bin": "./bin/index.mjs",
+  "files": [
+    "README.md",
+    "package.json",
+    "bin"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "watch:rescript": "rescript watch",
+    "watch:rolldown": "rolldown --watch -c",
+    "build": "pnpm run build:res && pnpm run build:bin",
+    "build:res": "rescript build",
+    "build:bin": "rolldown -c && node scripts/MakeBinExecutable.res.mjs",
+    "clean": "rescript clean",
+    "test": "pnpm run build && node test/Cli_test.res.mjs && node test/AddCore_test.res.mjs && node test/PublishCore_test.res.mjs && node test/PackageJson_test.res.mjs && node test/Add_test.res.mjs && node test/Update_test.res.mjs && node test/RegistryDiscovery_test.res.mjs && node test/PublishOAuth_test.res.mjs && node test/Bin_test.res.mjs",
+    "test:package": "pnpm run build && node scripts/PackageSmokeTest.mjs",
+    "prepack": "pnpm run build"
+  },
+  "devDependencies": {
+    "@inquirer/prompts": "^8.4.2",
+    "@jvlk/rescript-bindings-api": "workspace:*",
+    "@rescript/runtime": "^12.2.0",
+    "commander": "^14.0.3",
+    "rescript": "^12.0.0",
+    "rolldown": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
 }
