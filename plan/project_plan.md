@@ -1,7 +1,7 @@
 # ReScript Binding Registry Design
 
 **Date:** 2026-04-18
-**Status:** Phase 1 complete; Phase 2 complete; Phase 3 pending
+**Status:** Phase 1 complete; Phase 2 complete; release readiness in progress; Phase 3 pending
 **Owner:** ReScript team
 
 ## Summary
@@ -438,6 +438,16 @@ This keeps the security boundary narrow:
 - [x] `--folder` override
 - [x] overwrite confirmation
 
+### Release Readiness
+
+- [x] make the npm package self-contained with no workspace runtime dependencies
+- [x] declare the supported Node.js version and npm package metadata
+- [x] add a clean-install npm tarball smoke test
+- [x] run the repository tests and package smoke test in GitHub Actions
+- [ ] select and add the owner-approved package license
+- [ ] verify the production Cloudflare Access OAuth and publisher-approval flow manually
+- [ ] publish `@jvlk/rescript-bindings@0.4.0` and verify a registry command from a clean project
+
 ### Phase 3: Hardening
 
 - [ ] release deprecation
@@ -460,7 +470,9 @@ This keeps the security boundary narrow:
 
 ## Current Implementation Checkpoint
 
-- Phase 1 and Phase 2 are implemented as of 2026-09-20. Compatibility ranking now uses semver range overlap for exact versions, caret and tilde ranges, and compound comparators.
+- Phase 1 and Phase 2 are implemented as of 2026-09-21. Compatibility ranking now uses semver range overlap for exact versions, caret and tilde ranges, and compound comparators.
+- The next CLI release is version `0.4.0`. Its npm package has no runtime workspace dependencies, declares Node.js 22.13 or newer, and is checked by a clean-install tarball smoke test in CI.
+- The package remains `UNLICENSED` until the owner selects and adds the intended license; that decision and a production OAuth smoke test are the remaining pre-publish gates.
 - CLI commands are top-level `list`, `recent`, `search`, `get`, `add`, `update`, `delete`, and `publish`, backed by the bundled `packages/cli/bin/index.mjs`.
 - Public read endpoints use `/api/v1/...`; protected publish endpoints use `/api/publish/v1/...`.
 - The registry API and D1 schema live in `packages/api`; the Node CLI lives in `packages/cli`; the browsing frontend lives in `packages/web`.
