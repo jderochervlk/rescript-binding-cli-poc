@@ -30,6 +30,8 @@ The user may choose another directory, but the final file basename is normalized
 
 This repository is a pnpm monorepo. The current package is implemented in **ReScript v12** with a Node CLI bundle and a Cloudflare Worker registry API.
 
+The CLI requires Node.js 22.13 or newer. Its npm tarball is self-contained: build-time workspace packages and JavaScript libraries are bundled into `bin/index.mjs`, so installing the CLI does not require access to this monorepo or its private workspaces.
+
 ## Layout
 
 - `packages/api`: Cloudflare Worker registry API, D1 schema, validation, and API tests.
@@ -56,9 +58,12 @@ corepack enable
 pnpm install
 pnpm build
 pnpm test
+pnpm test:package
 ```
 
-`pnpm build` type-checks ReScript and regenerates `packages/cli/bin/index.mjs`. `pnpm test` runs the build and the current script-based test suite.
+`pnpm build` type-checks ReScript and regenerates `packages/cli/bin/index.mjs`. `pnpm test` runs the build and the current script-based test suite. `pnpm test:package` packs the CLI, installs the tarball into a clean temporary project without network access, and runs the installed CLI's help command. This catches unpublished workspace dependencies and incomplete package contents before a release.
+
+The package is currently marked `UNLICENSED` because this repository does not yet contain an owner-approved license. Selecting and adding the intended license remains a release gate before broad public rollout.
 
 ## Local CLI
 
