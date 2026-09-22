@@ -2,6 +2,13 @@
 
 This package contains the ReScript-powered CLI for discovering, installing, updating, publishing, and deleting source bindings from the ReScript binding registry.
 
+## Requirements
+
+- Node.js 22.13 or newer
+- Network access to the binding registry for registry commands
+
+The published CLI is a self-contained Node.js bundle and does not install the registry API workspace package or its other build-time dependencies.
+
 ## Commands
 
 From the repository root:
@@ -9,6 +16,7 @@ From the repository root:
 ```bash
 pnpm --filter @jvlk/rescript-bindings build
 pnpm --filter @jvlk/rescript-bindings test
+pnpm --filter @jvlk/rescript-bindings test:package
 ```
 
 From this package directory:
@@ -16,7 +24,10 @@ From this package directory:
 ```bash
 pnpm build
 pnpm test
+pnpm test:package
 ```
+
+`test:package` builds and packs the npm package, installs it into a clean temporary project in offline mode, and runs the installed executable. Run it before publishing to catch missing bundle files or accidental runtime workspace dependencies.
 
 ## CLI
 
